@@ -9,8 +9,8 @@ export function categorize(status) {
 
 // Accepts full `data` object to count per-brand custom tasks and phase tasks.
 // Also backward-compatible if called with raw `tasks` (fields will just be empty/undefined).
-export function getBrandPhaseStats(data, brandId, phaseId) {
-  const phase = PHASES.find(p => p.id === phaseId)
+export function getBrandPhaseStats(data, brandId, phaseId, phases = PHASES) {
+  const phase = phases.find(p => p.id === phaseId)
   if (!phase) return { done: 0, in_progress: 0, pending: 0, total: 0, pct: 0 }
 
   const tasks = data.tasks || data
@@ -51,10 +51,10 @@ export function getBrandPhaseStats(data, brandId, phaseId) {
   return { done, in_progress, pending, total, pct: total > 0 ? Math.round((done / total) * 100) : 0 }
 }
 
-export function getPhaseGlobalStats(data, phaseId) {
+export function getPhaseGlobalStats(data, phaseId, phases = PHASES) {
   let done = 0, in_progress = 0, pending = 0
   VISIBLE_BRANDS.forEach(brand => {
-    const s = getBrandPhaseStats(data, brand.id, phaseId)
+    const s = getBrandPhaseStats(data, brand.id, phaseId, phases)
     done += s.done
     in_progress += s.in_progress
     pending += s.pending
@@ -63,11 +63,11 @@ export function getPhaseGlobalStats(data, phaseId) {
   return { done, in_progress, pending, total, pct: total > 0 ? Math.round((done / total) * 100) : 0 }
 }
 
-export function getGlobalStats(data) {
+export function getGlobalStats(data, phases = PHASES) {
   let done = 0, in_progress = 0, pending = 0
   VISIBLE_BRANDS.forEach(brand => {
-    PHASES.forEach(phase => {
-      const s = getBrandPhaseStats(data, brand.id, phase.id)
+    phases.forEach(phase => {
+      const s = getBrandPhaseStats(data, brand.id, phase.id, phases)
       done += s.done
       in_progress += s.in_progress
       pending += s.pending
@@ -110,9 +110,9 @@ export function getSectionStats(data, brandId, section) {
   return { done, in_progress, total, pct: total > 0 ? Math.round((done / total) * 100) : 0 }
 }
 
-export function getBrandLastActivePhase(tasks, brandId) {
+export function getBrandLastActivePhase(tasks, brandId, phases = PHASES) {
   let lastPhase = null
-  for (const phase of PHASES) {
+  for (const phase of phases) {
     const reqs = phase.sections.flatMap(s => s.requirements)
     const hasActivity = reqs.some(req => {
       const s = tasks[brandId]?.[req.id]?.status

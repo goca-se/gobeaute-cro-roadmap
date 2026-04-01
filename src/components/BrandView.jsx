@@ -34,7 +34,7 @@ const EMPTY_FILTERS = { search: '', statuses: [], responsible: [], priorities: [
 function taskMatchesFilters(task, displayTitle, filters) {
   if (filters.search && !displayTitle.toLowerCase().includes(filters.search.toLowerCase())) return false
   if (filters.statuses.length && !filters.statuses.includes(task.status || 'pending')) return false
-  if (filters.responsible.length && !filters.responsible.includes(task.responsible)) return false
+  if (filters.responsible.length && !filters.responsible.includes(task.assignee)) return false
   if (filters.priorities.length && !filters.priorities.includes(task.priority)) return false
   if (filters.overdueOnly) {
     const today = new Date(); today.setHours(0, 0, 0, 0)
@@ -257,7 +257,7 @@ function TaskRow({
   const [editingTitle, setEditingTitle] = useState(isCustom && !task.title)
   const [titleDraft, setTitleDraft] = useState(isCustom ? (task.title || '') : (task.customTitle || label || ''))
   const [showNotes, setShowNotes] = useState(false)
-  const [notesDraft, setNotesDraft] = useState(task.notes || '')
+  const [notesDraft, setNotesDraft] = useState(task.description || '')
   const titleRef = useRef(null)
 
   const displayTitle = isCustom ? (task.title || '') : (task.customTitle || label)
@@ -266,7 +266,7 @@ function TaskRow({
   const isOverdue = task.deadline && new Date(task.deadline) < today && task.status !== 'done'
 
   useEffect(() => { if (editingTitle && titleRef.current) { titleRef.current.focus(); titleRef.current.select() } }, [editingTitle])
-  useEffect(() => { setNotesDraft(task.notes || '') }, [task.notes])
+  useEffect(() => { setNotesDraft(task.description || '') }, [task.description])
 
   const saveTitle = () => {
     const t = titleDraft.trim()
@@ -345,7 +345,7 @@ function TaskRow({
 
         {/* Responsible */}
         <div style={{ width: '115px', flexShrink: 0 }}>
-          <ResponsibleSelect value={task.responsible} onChange={r => onUpdate('responsible', r)} />
+          <ResponsibleSelect value={task.assignee} onChange={r => onUpdate('assignee', r)} />
         </div>
 
         {/* Deadline */}
@@ -355,8 +355,8 @@ function TaskRow({
 
         {/* Notes */}
         <div style={{ width: '30px', flexShrink: 0, display: 'flex', justifyContent: 'center' }}>
-          <button onClick={() => setShowNotes(v => !v)} title={task.notes ? 'Ver observações' : 'Adicionar observações'}
-            style={{ background: showNotes ? phaseColor + '18' : 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: '4px', color: task.notes ? phaseColor : '#D6D3D1', transition: 'color 0.15s', display: 'flex', alignItems: 'center' }}>
+          <button onClick={() => setShowNotes(v => !v)} title={task.description ? 'Ver observações' : 'Adicionar observações'}
+            style={{ background: showNotes ? phaseColor + '18' : 'none', border: 'none', cursor: 'pointer', padding: '4px', borderRadius: '4px', color: task.description ? phaseColor : '#D6D3D1', transition: 'color 0.15s', display: 'flex', alignItems: 'center' }}>
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
               <path d="M2 3h9M2 6.5h6M2 10h4" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" />
             </svg>
@@ -379,7 +379,7 @@ function TaskRow({
         <div style={{ padding: '8px 14px 10px 108px', background: '#FAFAF8', borderTop: '1px solid #F0EDE8' }}>
           <RichTextEditor
             value={notesDraft}
-            onChange={v => { setNotesDraft(v); onUpdate('notes', v) }}
+            onChange={v => { setNotesDraft(v); onUpdate('description', v) }}
             placeholder="Observações, contexto, links, bloqueios..."
           />
         </div>
@@ -427,7 +427,7 @@ function SectionBlock({
   // All tasks lookup
   const taskById = {}
   section.requirements.forEach(req => {
-    taskById[req.id] = { ...req, task: tasks[brandId]?.[req.id] || { status: 'pending', responsible: null, deadline: null, notes: '', priority: null, customTitle: null }, isCustom: false }
+    taskById[req.id] = { ...req, task: tasks[brandId]?.[req.id] || { status: 'pending', assignee: null, deadline: null, description: '', priority: null, customTitle: null }, isCustom: false }
   })
   customTasksList.forEach(ct => {
     taskById[ct.id] = { id: ct.id, label: ct.title, task: ct, isCustom: true }
@@ -657,7 +657,7 @@ function BulkActionBar({ count, brandId, onApply, onClear }) {
   const apply = () => {
     const updates = {}
     if (bulkStatus) updates.status = bulkStatus
-    if (bulkResponsible) updates.responsible = bulkResponsible
+    if (bulkResponsible) updates.assignee = bulkResponsible
     if (bulkPriority) updates.priority = bulkPriority
     onApply(updates)
     setBulkStatus(''); setBulkResponsible(''); setBulkPriority('')
@@ -828,13 +828,14 @@ function BrandProfile({ brand, brandSettings, brandMetrics, appSettings, saveBra
 // ── BrandView (main) ────────────────────────────────────────────────────────
 
 export default function BrandView({
-  data, updateTask, addCustomTask, updateCustomTask, deleteCustomTask,
+  data, mergedPhases, updateTask, addCustomTask, updateCustomTask, deleteCustomTask,
   reorderSection, hideTask, showTask, bulkUpdateTasks,
   updateBrandSetting, saveBrandMetrics,
   selectedBrand, selectedPhase, onSelectBrand,
 }) {
   const [selectedIds, setSelectedIds] = useState(new Set())
   const [filters, setFilters] = useState(EMPTY_FILTERS)
+  const phases = mergedPhases || PHASES
   const brand = VISIBLE_BRANDS.find(b => b.id === selectedBrand) || VISIBLE_BRANDS[0]
 
   const statusConfig = buildStatusConfig(data.appSettings)
@@ -895,7 +896,7 @@ export default function BrandView({
       <FilterBar filters={filters} onChange={setFilters} />
 
       {/* Phase cards */}
-      {PHASES.map((phase, i) => (
+      {phases.map((phase, i) => (
         <PhaseCard
           key={phase.id}
           phase={phase}

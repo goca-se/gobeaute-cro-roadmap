@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { VISIBLE_BRANDS } from '../data/phases'
+import { BUILTIN_PHASE_LABELS, BUILTIN_SECTION_LABELS, BUILTIN_PHASE_IDS, CUSTOM_PHASE_COLORS } from '../utils/mergePhases'
 import { testConnection } from '../lib/metabase'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -332,9 +333,474 @@ function BrandSettings({ brand, brandSettings, updateBrandSetting }) {
   )
 }
 
+// ── Phase Manager ──────────────────────────────────────────────────────────
+
+const SUGGESTED_PHASE_EMOJIS = ['📊', '📈', '🎯', '🚀', '⚡', '🔍', '💡', '🧪', '📱', '🛒', '💰', '🌟', '🔬', '📋', '✅', '🎨', '🔧', '📣', '💎', '🏆', '🧭', '📦', '🌐', '⚙️']
+const SUGGESTED_SECTION_EMOJIS = ['🔍', '⚡', '📊', '🎯', '🛒', '💡', '🔧', '📱', '🌟', '✅', '📈', '💰', '🧪', '🎨', '📣', '🔬', '📋', '💎', '🏆', '🌐', '🧭', '⚙️', '📦', '🚀']
+
+function EmojiPicker({ value, onChange, suggested = SUGGESTED_PHASE_EMOJIS }) {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+      <input
+        value={value || ''}
+        onChange={e => onChange(e.target.value)}
+        placeholder="🎯"
+        style={{ width: '48px', padding: '5px 8px', borderRadius: '6px', border: '1px solid #E7E2DA', fontFamily: "'Outfit', sans-serif", fontSize: '18px', textAlign: 'center', outline: 'none' }}
+      />
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '3px', flex: 1 }}>
+        {suggested.map(e => (
+          <button
+            key={e}
+            onClick={() => onChange(e)}
+            style={{
+              padding: '3px 5px', border: value === e ? '1.5px solid #1D9E75' : '1px solid #E7E2DA',
+              borderRadius: '5px', background: value === e ? '#ECFDF5' : 'white',
+              cursor: 'pointer', fontSize: '16px', lineHeight: 1,
+            }}
+          >
+            {e}
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SectionRow({ section, isCustom, phaseId, onUpdateMeta, onDelete, dragHandleProps, isDragging, isDragOver }) {
+  const originalName = BUILTIN_SECTION_LABELS[section.section_id || section.id] || null
+
+  return (
+    <div
+      style={{
+        display: 'flex', alignItems: 'flex-start', gap: '8px', padding: '10px 12px',
+        background: isDragOver ? '#F0FDF4' : 'white',
+        border: `1px solid ${isDragOver ? '#A7F3D0' : '#F0EDE8'}`,
+        borderRadius: '8px', opacity: isDragging ? 0.4 : 1,
+        borderTop: isDragOver ? '2px solid #1D9E75' : undefined,
+        transition: 'background 0.1s',
+      }}
+      {...dragHandleProps}
+    >
+      {/* Drag handle */}
+      <div style={{ cursor: 'grab', color: '#D6D3D1', fontSize: '14px', lineHeight: '28px', flexShrink: 0, paddingTop: '2px' }}>⠿</div>
+
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {/* Emoji picker for section */}
+        <div style={{ marginBottom: '6px' }}>
+          <EmojiPicker
+            value={section.emoji}
+            onChange={v => onUpdateMeta(section.section_id || section.id, 'emoji', v)}
+            suggested={SUGGESTED_SECTION_EMOJIS}
+          />
+        </div>
+        {/* Name input */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <input
+            defaultValue={section.name || section.label}
+            onBlur={e => onUpdateMeta(section.section_id || section.id, 'label', e.target.value)}
+            style={{ flex: 1, padding: '5px 8px', border: '1px solid #E7E2DA', borderRadius: '6px', fontFamily: "'Outfit', sans-serif", fontSize: '13px', color: '#1C1917', outline: 'none' }}
+          />
+          {originalName && (section.name || section.label) !== originalName && (
+            <button
+              onClick={() => onUpdateMeta(section.section_id || section.id, 'label', originalName)}
+              title="Restaurar nome original"
+              style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#A8A29E', fontSize: '14px', flexShrink: 0, padding: '2px' }}
+            >↺</button>
+          )}
+        </div>
+      </div>
+
+      {/* Built-in tag or delete */}
+      {isCustom ? (
+        <button
+          onClick={() => onDelete(section.section_id || section.id)}
+          title="Remover seção personalizada"
+          style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#D6D3D1', fontSize: '20px', lineHeight: 1, padding: '0 2px', flexShrink: 0, alignSelf: 'center' }}
+        >×</button>
+      ) : (
+        <span style={{ fontSize: '10px', color: '#A8A29E', background: '#F5F4F2', padding: '2px 6px', borderRadius: '4px', flexShrink: 0, alignSelf: 'center', fontFamily: "'Syne', sans-serif", fontWeight: 600 }}>
+          built-in
+        </span>
+      )}
+    </div>
+  )
+}
+
+function AddSectionForm({ phaseId, onAdd, onCancel }) {
+  const [name, setName] = useState('')
+  const [emoji, setEmoji] = useState('')
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    if (!name.trim()) return
+    onAdd(phaseId, { name: name.trim(), emoji })
+    setName('')
+    setEmoji('')
+  }
+
+  return (
+    <form onSubmit={handleSubmit} style={{ display: 'flex', gap: '8px', alignItems: 'flex-end', padding: '10px 12px', background: '#FAFAF8', border: '1px dashed #D6D3D1', borderRadius: '8px' }}>
+      <div style={{ flex: 1 }}>
+        <label style={{ display: 'block', fontFamily: "'Syne', sans-serif", fontSize: '10px', fontWeight: 600, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Nome da seção</label>
+        <input
+          value={name}
+          onChange={e => setName(e.target.value)}
+          placeholder="Nova seção..."
+          autoFocus
+          style={{ width: '100%', padding: '6px 8px', border: '1px solid #E7E2DA', borderRadius: '6px', fontFamily: "'Outfit', sans-serif", fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+        />
+      </div>
+      <div style={{ width: '56px' }}>
+        <label style={{ display: 'block', fontFamily: "'Syne', sans-serif", fontSize: '10px', fontWeight: 600, color: '#78716C', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Emoji</label>
+        <input
+          value={emoji}
+          onChange={e => setEmoji(e.target.value)}
+          placeholder="🎯"
+          style={{ width: '100%', padding: '6px 8px', border: '1px solid #E7E2DA', borderRadius: '6px', fontFamily: "'Outfit', sans-serif", fontSize: '18px', textAlign: 'center', outline: 'none', boxSizing: 'border-box' }}
+        />
+      </div>
+      <button
+        type="submit"
+        disabled={!name.trim()}
+        style={{ padding: '7px 14px', borderRadius: '6px', background: '#1D9E75', border: 'none', color: 'white', fontFamily: "'Syne', sans-serif", fontSize: '12px', fontWeight: 600, cursor: name.trim() ? 'pointer' : 'not-allowed', opacity: name.trim() ? 1 : 0.5, flexShrink: 0 }}
+      >
+        Adicionar
+      </button>
+      <button
+        type="button"
+        onClick={onCancel}
+        style={{ padding: '7px 12px', borderRadius: '6px', background: 'white', border: '1px solid #E7E2DA', color: '#78716C', fontFamily: "'Syne', sans-serif", fontSize: '12px', cursor: 'pointer', flexShrink: 0 }}
+      >
+        Cancelar
+      </button>
+    </form>
+  )
+}
+
+function AddPhaseForm({ onAdd, onCancel }) {
+  const [name, setName] = useState('')
+  const [emoji, setEmoji] = useState('')
+  const [colorIdx, setColorIdx] = useState(0)
+  const palette = CUSTOM_PHASE_COLORS[colorIdx]
+
+  function handleSubmit(e) {
+    e.preventDefault()
+    if (!name.trim()) return
+    onAdd({ label: name.trim(), emoji, ...palette })
+    setName(''); setEmoji(''); setColorIdx(0)
+  }
+
+  return (
+    <form onSubmit={handleSubmit} style={{ padding: '16px', background: '#FAFAF8', border: '1px dashed #D6D3D1', borderRadius: '10px', marginTop: '4px' }}>
+      <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '10px', fontWeight: 700, color: '#A8A29E', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '12px' }}>
+        Nova fase
+      </div>
+      <div style={{ display: 'flex', gap: '10px', alignItems: 'flex-end', flexWrap: 'wrap' }}>
+        <div style={{ flex: 1, minWidth: '160px' }}>
+          <label style={{ display: 'block', fontFamily: "'Syne', sans-serif", fontSize: '10px', fontWeight: 600, color: '#57534E', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Nome</label>
+          <input
+            value={name}
+            onChange={e => setName(e.target.value)}
+            placeholder="Nome da fase..."
+            autoFocus
+            style={{ width: '100%', padding: '7px 10px', border: '1px solid #E7E2DA', borderRadius: '6px', fontFamily: "'Outfit', sans-serif", fontSize: '13px', outline: 'none', boxSizing: 'border-box' }}
+          />
+        </div>
+        <div style={{ width: '56px' }}>
+          <label style={{ display: 'block', fontFamily: "'Syne', sans-serif", fontSize: '10px', fontWeight: 600, color: '#57534E', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Emoji</label>
+          <input
+            value={emoji}
+            onChange={e => setEmoji(e.target.value)}
+            placeholder="🎯"
+            style={{ width: '100%', padding: '7px 8px', border: '1px solid #E7E2DA', borderRadius: '6px', fontFamily: "'Outfit', sans-serif", fontSize: '18px', textAlign: 'center', outline: 'none', boxSizing: 'border-box' }}
+          />
+        </div>
+        <div>
+          <label style={{ display: 'block', fontFamily: "'Syne', sans-serif", fontSize: '10px', fontWeight: 600, color: '#57534E', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Cor</label>
+          <div style={{ display: 'flex', gap: '5px' }}>
+            {CUSTOM_PHASE_COLORS.map((c, i) => (
+              <button
+                key={i} type="button"
+                onClick={() => setColorIdx(i)}
+                style={{
+                  width: '22px', height: '22px', borderRadius: '50%', background: c.color, border: i === colorIdx ? '2.5px solid #1C1917' : '2px solid transparent',
+                  cursor: 'pointer', padding: 0,
+                }}
+              />
+            ))}
+          </div>
+        </div>
+      </div>
+      <div style={{ display: 'flex', gap: '8px', marginTop: '12px' }}>
+        <button
+          type="submit" disabled={!name.trim()}
+          style={{ padding: '7px 16px', borderRadius: '6px', background: palette.color, border: 'none', color: 'white', fontFamily: "'Syne', sans-serif", fontSize: '12px', fontWeight: 600, cursor: name.trim() ? 'pointer' : 'not-allowed', opacity: name.trim() ? 1 : 0.5 }}
+        >
+          Criar fase
+        </button>
+        <button
+          type="button" onClick={onCancel}
+          style={{ padding: '7px 12px', borderRadius: '6px', background: 'white', border: '1px solid #E7E2DA', color: '#78716C', fontFamily: "'Syne', sans-serif", fontSize: '12px', cursor: 'pointer' }}
+        >
+          Cancelar
+        </button>
+      </div>
+    </form>
+  )
+}
+
+function PhaseAccordionSettings({ phase, isBuiltinPhase, onUpdatePhaseMeta, onUpdateSectionMeta, onAddSection, onDeleteSection, onDeletePhase, onReorderSections }) {
+  const [open, setOpen] = useState(false)
+  const [showAddForm, setShowAddForm] = useState(false)
+  const [dragSectionId, setDragSectionId] = useState(null)
+  const [dragOverSectionId, setDragOverSectionId] = useState(null)
+  const originalName = BUILTIN_PHASE_LABELS[phase.id] || null
+
+  // All sections for this phase
+  const sections = phase.sections || []
+  // Built-in section IDs (from BUILTIN_SECTION_LABELS)
+  const isBuiltin = (sId) => !!BUILTIN_SECTION_LABELS[sId]
+
+  function handleSectionDragStart(e, sectionId) {
+    setDragSectionId(sectionId)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  function handleSectionDragOver(e, sectionId) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (sectionId !== dragSectionId) setDragOverSectionId(sectionId)
+  }
+
+  function handleSectionDrop(e, targetSectionId) {
+    e.preventDefault()
+    if (!dragSectionId || dragSectionId === targetSectionId) {
+      setDragSectionId(null); setDragOverSectionId(null); return
+    }
+    const ids = sections.map(s => s.id)
+    const fromIdx = ids.indexOf(dragSectionId)
+    const toIdx = ids.indexOf(targetSectionId)
+    if (fromIdx < 0 || toIdx < 0) { setDragSectionId(null); setDragOverSectionId(null); return }
+    const reordered = [...ids]
+    reordered.splice(fromIdx, 1)
+    reordered.splice(toIdx, 0, dragSectionId)
+    onReorderSections(phase.id, reordered)
+    setDragSectionId(null); setDragOverSectionId(null)
+  }
+
+  return (
+    <div style={{ border: `1px solid #E7E2DA`, borderLeft: `3px solid ${phase.color}`, borderRadius: '10px', overflow: 'hidden', marginBottom: '8px' }}>
+      <div style={{ display: 'flex', alignItems: 'stretch', background: open ? '#FAFAF8' : 'white' }}>
+        <button
+          onClick={() => setOpen(o => !o)}
+          style={{ flex: 1, padding: '14px 16px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '10px' }}
+        >
+          <span style={{ fontSize: '20px', lineHeight: 1, flexShrink: 0, minWidth: '24px' }}>{phase.emoji || ''}</span>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '11px', fontWeight: 700, color: phase.color, textTransform: 'uppercase', letterSpacing: '0.8px' }}>
+              Fase {phase.number}
+            </div>
+            <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: '14px', fontWeight: 500, color: '#1C1917', marginTop: '2px' }}>
+              {phase.name}
+            </div>
+          </div>
+          <span style={{ fontSize: '11px', color: '#A8A29E' }}>{sections.length} seções</span>
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none" style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s', color: '#A8A29E', flexShrink: 0 }}>
+            <path d="M3 5l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </button>
+        {!isBuiltinPhase && (
+          <button
+            onClick={() => { if (window.confirm(`Excluir a fase "${phase.name}"? Esta ação não pode ser desfeita.`)) onDeletePhase(phase.id) }}
+            title="Excluir fase"
+            style={{ padding: '0 16px', background: 'none', border: 'none', borderLeft: '1px solid #F0EDE8', cursor: 'pointer', color: '#D6D3D1', fontSize: '20px', lineHeight: 1, flexShrink: 0, transition: 'color 0.15s' }}
+            onMouseEnter={e => e.currentTarget.style.color = '#DC2626'}
+            onMouseLeave={e => e.currentTarget.style.color = '#D6D3D1'}
+          >×</button>
+        )}
+      </div>
+
+      {open && (
+        <div style={{ borderTop: '1px solid #F0EDE8', padding: '16px' }}>
+          {/* Phase meta editing */}
+          <div style={{ marginBottom: '16px', padding: '14px', background: '#FAFAF8', borderRadius: '8px' }}>
+            <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '10px', fontWeight: 700, color: '#A8A29E', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '10px' }}>
+              Identidade da fase
+            </div>
+            <div style={{ marginBottom: '10px' }}>
+              <label style={{ display: 'block', fontFamily: "'Syne', sans-serif", fontSize: '10px', fontWeight: 600, color: '#57534E', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>Emoji</label>
+              <EmojiPicker
+                value={phase.emoji}
+                onChange={v => onUpdatePhaseMeta(phase.id, 'emoji', v)}
+                suggested={SUGGESTED_PHASE_EMOJIS}
+              />
+            </div>
+            <div>
+              <label style={{ display: 'block', fontFamily: "'Syne', sans-serif", fontSize: '10px', fontWeight: 600, color: '#57534E', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '5px' }}>Nome</label>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <input
+                  key={phase.name}
+                  defaultValue={phase.name}
+                  onBlur={e => onUpdatePhaseMeta(phase.id, 'label', e.target.value)}
+                  style={{ flex: 1, padding: '6px 10px', border: '1px solid #E7E2DA', borderRadius: '6px', fontFamily: "'Outfit', sans-serif", fontSize: '13px', color: '#1C1917', outline: 'none' }}
+                />
+                {originalName && phase.name !== originalName && (
+                  <button
+                    onClick={() => onUpdatePhaseMeta(phase.id, 'label', originalName)}
+                    title="Restaurar nome original"
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#A8A29E', fontSize: '16px', padding: '2px' }}
+                  >↺</button>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Sections */}
+          <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '10px', fontWeight: 700, color: '#A8A29E', textTransform: 'uppercase', letterSpacing: '0.8px', marginBottom: '8px' }}>
+            Seções
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginBottom: '10px' }}>
+            {sections.map(section => (
+              <div
+                key={section.id}
+                draggable
+                onDragStart={e => handleSectionDragStart(e, section.id)}
+                onDragOver={e => handleSectionDragOver(e, section.id)}
+                onDrop={e => handleSectionDrop(e, section.id)}
+                onDragEnd={() => { setDragSectionId(null); setDragOverSectionId(null) }}
+              >
+                <SectionRow
+                  section={{ ...section, section_id: section.id }}
+                  isCustom={!isBuiltin(section.id)}
+                  phaseId={phase.id}
+                  onUpdateMeta={onUpdateSectionMeta}
+                  onDelete={onDeleteSection}
+                  dragHandleProps={{}}
+                  isDragging={dragSectionId === section.id}
+                  isDragOver={dragOverSectionId === section.id}
+                />
+              </div>
+            ))}
+            {sections.length === 0 && (
+              <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: '12px', color: '#A8A29E', fontStyle: 'italic' }}>Nenhuma seção. Adicione uma abaixo.</p>
+            )}
+          </div>
+
+          {showAddForm ? (
+            <AddSectionForm
+              phaseId={phase.id}
+              onAdd={(phaseId, opts) => { onAddSection(phaseId, opts); setShowAddForm(false) }}
+              onCancel={() => setShowAddForm(false)}
+            />
+          ) : (
+            <button
+              onClick={() => setShowAddForm(true)}
+              style={{ display: 'flex', alignItems: 'center', gap: '5px', background: 'none', border: '1px dashed #D6D3D1', cursor: 'pointer', padding: '7px 14px', borderRadius: '8px', fontSize: '12px', fontFamily: "'Outfit', sans-serif", color: '#A8A29E' }}
+            >
+              + Adicionar seção personalizada
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function PhaseManagerSection({ mergedPhases, onUpdatePhaseMeta, onUpdateSectionMeta, onAddPhase, onDeletePhase, onAddSection, onDeleteSection, onReorderPhases, onReorderSections }) {
+  const [dragPhaseId, setDragPhaseId] = useState(null)
+  const [dragOverPhaseId, setDragOverPhaseId] = useState(null)
+  const [showAddPhase, setShowAddPhase] = useState(false)
+
+  if (!mergedPhases || !mergedPhases.length) return null
+
+  function handlePhaseDragStart(e, phaseId) {
+    setDragPhaseId(phaseId)
+    e.dataTransfer.effectAllowed = 'move'
+  }
+
+  function handlePhaseDragOver(e, phaseId) {
+    e.preventDefault()
+    e.dataTransfer.dropEffect = 'move'
+    if (phaseId !== dragPhaseId) setDragOverPhaseId(phaseId)
+  }
+
+  function handlePhaseDrop(e, targetPhaseId) {
+    e.preventDefault()
+    if (!dragPhaseId || dragPhaseId === targetPhaseId) {
+      setDragPhaseId(null); setDragOverPhaseId(null); return
+    }
+    const ids = mergedPhases.map(p => p.id)
+    const fromIdx = ids.indexOf(dragPhaseId)
+    const toIdx = ids.indexOf(targetPhaseId)
+    if (fromIdx < 0 || toIdx < 0) { setDragPhaseId(null); setDragOverPhaseId(null); return }
+    const reordered = [...ids]
+    reordered.splice(fromIdx, 1)
+    reordered.splice(toIdx, 0, dragPhaseId)
+    onReorderPhases(reordered)
+    setDragPhaseId(null); setDragOverPhaseId(null)
+  }
+
+  return (
+    <div>
+      <p style={{ fontFamily: "'Outfit', sans-serif", fontSize: '12px', color: '#A8A29E', marginBottom: '14px' }}>
+        Arraste ⠿ para reordenar · edições salvam automaticamente · fases e seções built-in não podem ser removidas
+      </p>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+        {mergedPhases.map(phase => (
+          <div
+            key={phase.id}
+            draggable
+            onDragStart={e => handlePhaseDragStart(e, phase.id)}
+            onDragOver={e => handlePhaseDragOver(e, phase.id)}
+            onDrop={e => handlePhaseDrop(e, phase.id)}
+            onDragEnd={() => { setDragPhaseId(null); setDragOverPhaseId(null) }}
+            style={{
+              opacity: dragPhaseId === phase.id ? 0.4 : 1,
+              borderTop: dragOverPhaseId === phase.id ? '2px solid #1D9E75' : '2px solid transparent',
+              transition: 'opacity 0.15s',
+            }}
+          >
+            <PhaseAccordionSettings
+              phase={phase}
+              isBuiltinPhase={BUILTIN_PHASE_IDS.has(phase.id)}
+              onUpdatePhaseMeta={onUpdatePhaseMeta}
+              onUpdateSectionMeta={onUpdateSectionMeta}
+              onAddSection={onAddSection}
+              onDeleteSection={onDeleteSection}
+              onDeletePhase={onDeletePhase}
+              onReorderSections={onReorderSections}
+            />
+          </div>
+        ))}
+      </div>
+
+      {showAddPhase ? (
+        <AddPhaseForm
+          onAdd={(opts) => { onAddPhase(opts); setShowAddPhase(false) }}
+          onCancel={() => setShowAddPhase(false)}
+        />
+      ) : (
+        <button
+          onClick={() => setShowAddPhase(true)}
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', marginTop: '8px', background: 'none', border: '1px dashed #D6D3D1', cursor: 'pointer', padding: '10px 16px', borderRadius: '10px', fontSize: '13px', fontFamily: "'Outfit', sans-serif", color: '#A8A29E', width: '100%', justifyContent: 'center' }}
+        >
+          + Adicionar fase
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ── SettingsView (main) ────────────────────────────────────────────────────
 
-export default function SettingsView({ data, updateBrandSetting, updateAppSetting }) {
+export default function SettingsView({
+  data, mergedPhases,
+  updateBrandSetting, updateAppSetting,
+  updatePhaseMeta, updateSectionMeta,
+  addPhase, deletePhase,
+  addCustomSection, deleteCustomSection,
+  reorderPhases, reorderSections,
+}) {
   const appSettings = data.appSettings || {}
   const brandSettings = data.brandSettings || {}
 
@@ -381,6 +847,24 @@ export default function SettingsView({ data, updateBrandSetting, updateAppSettin
         <Card>
           <ResponsibleAreasSection appSettings={appSettings} updateAppSetting={updateAppSetting} />
         </Card>
+      </div>
+
+      {/* Phase Manager */}
+      <div style={{ marginBottom: '32px' }}>
+        <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: '11px', fontWeight: 700, color: '#A8A29E', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>
+          Gerenciador de fases
+        </h2>
+        <PhaseManagerSection
+          mergedPhases={mergedPhases}
+          onUpdatePhaseMeta={updatePhaseMeta}
+          onUpdateSectionMeta={updateSectionMeta}
+          onAddPhase={addPhase}
+          onDeletePhase={deletePhase}
+          onAddSection={addCustomSection}
+          onDeleteSection={deleteCustomSection}
+          onReorderPhases={reorderPhases}
+          onReorderSections={reorderSections}
+        />
       </div>
 
       {/* Per-brand settings */}

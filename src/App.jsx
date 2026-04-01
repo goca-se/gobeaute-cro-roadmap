@@ -12,11 +12,13 @@ export default function App() {
   const {
     data, activityLog,
     syncState, lastSynced,
+    mergedPhases,
     updateTask,
     addCustomTask, updateCustomTask, deleteCustomTask,
     reorderSection, hideTask, showTask, bulkUpdateTasks,
-    addPhaseTask, updatePhaseTask, deletePhaseTask, showPhaseTask, reorderPhaseSection,
+    addPhaseTask, updatePhaseTask, deletePhaseTask, showPhaseTask, reorderPhaseSection, movePhaseTask,
     updatePhaseTitleOverride, updatePhaseNote,
+    updatePhaseMeta, updateSectionMeta, addPhase, deletePhase, addCustomSection, deleteCustomSection, reorderPhases, reorderSections,
     updateBrandSetting, updateAppSetting, saveBrandMetrics,
     exportJSON, exportCSV,
   } = useCROData()
@@ -44,11 +46,12 @@ export default function App() {
       />
       <main>
         {view === 'dashboard' && (
-          <Dashboard data={data} onNavigateBrandPhase={handleNavigateBrandPhase} />
+          <Dashboard data={data} mergedPhases={mergedPhases} onNavigateBrandPhase={handleNavigateBrandPhase} />
         )}
         {view === 'brand' && (
           <BrandView
             data={data}
+            mergedPhases={mergedPhases}
             updateTask={updateTask}
             addCustomTask={addCustomTask}
             updateCustomTask={updateCustomTask}
@@ -67,6 +70,7 @@ export default function App() {
         {view === 'matrix' && (
           <MatrixView
             data={data}
+            mergedPhases={mergedPhases}
             updateTask={updateTask}
             exportCSV={exportCSV}
             addPhaseTask={addPhaseTask}
@@ -74,6 +78,7 @@ export default function App() {
             deletePhaseTask={deletePhaseTask}
             showPhaseTask={showPhaseTask}
             reorderPhaseSection={reorderPhaseSection}
+            movePhaseTask={movePhaseTask}
             updatePhaseTitleOverride={updatePhaseTitleOverride}
             updatePhaseNote={updatePhaseNote}
           />
@@ -87,8 +92,17 @@ export default function App() {
         {view === 'settings' && (
           <SettingsView
             data={data}
+            mergedPhases={mergedPhases}
             updateBrandSetting={updateBrandSetting}
             updateAppSetting={updateAppSetting}
+            updatePhaseMeta={updatePhaseMeta}
+            updateSectionMeta={updateSectionMeta}
+            addPhase={addPhase}
+            deletePhase={deletePhase}
+            addCustomSection={addCustomSection}
+            deleteCustomSection={deleteCustomSection}
+            reorderPhases={reorderPhases}
+            reorderSections={reorderSections}
           />
         )}
       </main>

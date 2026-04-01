@@ -2,7 +2,7 @@ import { useState, useRef, useEffect, createContext, useContext } from 'react'
 import Tooltip from './Tooltip'
 import RichTextEditor from './RichTextEditor'
 import { VISIBLE_BRANDS, PHASES } from '../data/phases'
-import { STATUS_CONFIG, STATUS_ORDER } from '../data/statusConfig'
+import { STATUS_CONFIG, STATUS_ORDER, PRIORITY_CONFIG } from '../data/statusConfig'
 
 // ── Config context ────────────────────────────────────────────────────────────
 
@@ -64,6 +64,32 @@ function DragHandle() {
   )
 }
 
+// ── PrioritySelect ────────────────────────────────────────────────────────────
+
+function PrioritySelect({ value, onChange }) {
+  const cfg = value ? PRIORITY_CONFIG[value] : null
+  return (
+    <select
+      value={value || ''}
+      onChange={e => onChange(e.target.value || null)}
+      style={{
+        padding: '2px 6px', borderRadius: '5px', fontSize: '10px',
+        fontFamily: "'Syne', sans-serif", fontWeight: 600,
+        border: `1px solid ${cfg?.border || '#E7E2DA'}`,
+        background: cfg?.bg || '#F9FAFB',
+        color: cfg?.color || '#A8A29E',
+        cursor: 'pointer', outline: 'none', appearance: 'none',
+        WebkitAppearance: 'none',
+      }}
+    >
+      <option value="">–</option>
+      <option value="high">● Alta</option>
+      <option value="medium">● Média</option>
+      <option value="low">● Baixa</option>
+    </select>
+  )
+}
+
 // ── Build sorted + filtered task list ────────────────────────────────────────
 
 function buildTaskList(section, phaseCustomTasks, phaseTaskOrder, phaseHiddenTasks, phaseTitles, phaseNotes) {
@@ -78,7 +104,8 @@ function buildTaskList(section, phaseCustomTasks, phaseTaskOrder, phaseHiddenTas
       isCustom: false,
       notes: (phaseNotes || {})[r.id] || '',
     }))
-  const custom = (phaseCustomTasks?.[section.id] || [])
+  const customSrc = phaseCustomTasks?.[section.id] || []
+  const custom = customSrc
     .map(ct => ({
       id: ct.id,
       label: ct.title || '',
@@ -86,12 +113,23 @@ function buildTaskList(section, phaseCustomTasks, phaseTaskOrder, phaseHiddenTas
       tooltip: '',
       isCustom: true,
       notes: (phaseNotes || {})[ct.id] || '',
+      priority: ct.priority || null,
+      description: ct.description || '',
+      sort: ct.sort ?? 0,
     }))
   const combined = [...builtIn, ...custom]
   const order = phaseTaskOrder?.[section.id]
   if (order?.length) {
     const orderMap = new Map(order.map((id, i) => [id, i]))
     combined.sort((a, b) => (orderMap.get(a.id) ?? 9999) - (orderMap.get(b.id) ?? 9999))
+  } else {
+    // Sort custom tasks by their sort field when no explicit order exists
+    combined.sort((a, b) => {
+      if (!a.isCustom && !b.isCustom) return 0
+      if (!a.isCustom) return -1
+      if (!b.isCustom) return 1
+      return (a.sort ?? 0) - (b.sort ?? 0)
+    })
   }
   return combined
 }
@@ -100,7 +138,7 @@ function buildTaskList(section, phaseCustomTasks, phaseTaskOrder, phaseHiddenTas
 
 function TaskRow({
   task, phase, data, updateTask,
-  onDelete, onUpdateTitle, onUpdateNote,
+  onDelete, onUpdateTitle, onUpdateNote, onUpdatePriority, onUpdateDescription,
   isDragging, isDragOver,
   onDragStart, onDragOver, onDragEnd, onDrop,
 }) {
@@ -108,6 +146,7 @@ function TaskRow({
   const [titleDraft, setTitleDraft] = useState(task.label || '')
   const [showNotes, setShowNotes] = useState(false)
   const [notesDraft, setNotesDraft] = useState(task.notes || '')
+  const [descDraft, setDescDraft] = useState(task.description || '')
   const titleRef = useRef(null)
 
   useEffect(() => {
@@ -118,6 +157,7 @@ function TaskRow({
   }, [editingTitle])
 
   useEffect(() => { setNotesDraft(task.notes || '') }, [task.notes])
+  useEffect(() => { setDescDraft(task.description || '') }, [task.description])
 
   function startEditing() {
     setTitleDraft(task.label || '')
@@ -140,7 +180,7 @@ function TaskRow({
         onDragStart={onDragStart}
         onDragOver={e => { e.preventDefault(); onDragOver() }}
         onDragEnd={onDragEnd}
-        onDrop={e => { e.preventDefault(); onDrop() }}
+        onDrop={e => { e.preventDefault(); onDrop(e) }}
         style={{
           background: isDragOver ? phase.colorLight : 'white',
           opacity: isDragging ? 0.4 : 1,
@@ -198,6 +238,12 @@ function TaskRow({
                 )}
               </span>
             )}
+            {task.isCustom && onUpdatePriority && (
+              <PrioritySelect
+                value={task.priority}
+                onChange={p => onUpdatePriority(task.id, p)}
+              />
+            )}
           </div>
         </td>
 
@@ -241,15 +287,23 @@ function TaskRow({
         </td>
       </tr>
 
-      {/* Notes row */}
+      {/* Notes / description row */}
       {showNotes && (
         <tr style={{ background: '#FAFAF8', borderBottom: '1px solid #F7F4EF' }}>
           <td colSpan={colSpan} style={{ padding: '6px 20px 10px 30px' }}>
-            <RichTextEditor
-              value={notesDraft}
-              onChange={v => { setNotesDraft(v); onUpdateNote(task.id, v) }}
-              placeholder="Observação sobre esta tarefa..."
-            />
+            {task.isCustom && onUpdateDescription ? (
+              <RichTextEditor
+                value={descDraft}
+                onChange={v => { setDescDraft(v); onUpdateDescription(task.id, v) }}
+                placeholder="Descrição da tarefa..."
+              />
+            ) : (
+              <RichTextEditor
+                value={notesDraft}
+                onChange={v => { setNotesDraft(v); onUpdateNote(task.id, v) }}
+                placeholder="Observação sobre esta tarefa..."
+              />
+            )}
           </td>
         </tr>
       )}
@@ -263,7 +317,7 @@ function SectionBlock({
   section, phase, data, updateTask,
   phaseCustomTasks, phaseTaskOrder, phaseHiddenTasks, phaseTitles, phaseNotes,
   onAddTask, onUpdatePhaseTask, onDeleteTask, onRestoreTask, onReorderSection,
-  onUpdateTitleOverride, onUpdateNote,
+  onUpdateTitleOverride, onUpdateNote, onMovePhaseTask,
   sectionIndex,
 }) {
   const [dragId, setDragId] = useState(null)
@@ -274,7 +328,16 @@ function SectionBlock({
   const hiddenReqs = section.requirements.filter(r => (phaseHiddenTasks || []).includes(r.id))
   const colSpan = VISIBLE_BRANDS.length + 2
 
-  function handleDrop(targetId) {
+  function handleDrop(targetId, e) {
+    // Check for cross-section drag
+    const src = JSON.parse(e?.dataTransfer?.getData('cro/task') || '{}')
+    if (src.sectionId && src.sectionId !== section.id && src.isCustom) {
+      const targetIdx = tasks.findIndex(t => t.id === targetId)
+      onMovePhaseTask(src.taskId, src.sectionId, section.id, targetIdx < 0 ? tasks.length : targetIdx)
+      setDragId(null)
+      setDragOverId(null)
+      return
+    }
     if (!dragId || dragId === targetId) return
     const ids = tasks.map(t => t.id)
     const from = ids.indexOf(dragId)
@@ -289,7 +352,8 @@ function SectionBlock({
   }
 
   function handleTitleUpdate(taskId, newTitle) {
-    if (taskId.startsWith('custom_phase_')) {
+    const task = tasks.find(t => t.id === taskId)
+    if (task?.isCustom) {
       onUpdatePhaseTask(section.id, taskId, 'title', newTitle)
     } else {
       onUpdateTitleOverride(taskId, newTitle)
@@ -326,12 +390,17 @@ function SectionBlock({
           onDelete={id => onDeleteTask(section.id, id)}
           onUpdateTitle={handleTitleUpdate}
           onUpdateNote={onUpdateNote}
+          onUpdatePriority={task.isCustom ? (taskId, p) => onUpdatePhaseTask(section.id, taskId, 'priority', p) : null}
+          onUpdateDescription={task.isCustom ? (taskId, d) => onUpdatePhaseTask(section.id, taskId, 'description', d) : null}
           isDragging={dragId === task.id}
           isDragOver={dragOverId === task.id && dragId !== task.id}
-          onDragStart={() => setDragId(task.id)}
+          onDragStart={e => {
+            e.dataTransfer.setData('cro/task', JSON.stringify({ taskId: task.id, sectionId: section.id, isCustom: task.isCustom }))
+            setDragId(task.id)
+          }}
           onDragOver={() => setDragOverId(task.id)}
           onDragEnd={() => { setDragId(null); setDragOverId(null) }}
-          onDrop={() => handleDrop(task.id)}
+          onDrop={e => handleDrop(task.id, e)}
         />
       ))}
 
@@ -387,12 +456,13 @@ function SectionBlock({
 // ── MatrixView ────────────────────────────────────────────────────────────────
 
 export default function MatrixView({
-  data, updateTask, exportCSV,
-  addPhaseTask, updatePhaseTask, deletePhaseTask, showPhaseTask, reorderPhaseSection,
+  data, mergedPhases, updateTask, exportCSV,
+  addPhaseTask, updatePhaseTask, deletePhaseTask, showPhaseTask, reorderPhaseSection, movePhaseTask,
   updatePhaseTitleOverride, updatePhaseNote,
 }) {
-  const [selectedPhase, setSelectedPhase] = useState(PHASES[0].id)
-  const phase = PHASES.find(p => p.id === selectedPhase)
+  const phases = mergedPhases || PHASES
+  const [selectedPhase, setSelectedPhase] = useState(phases[0]?.id || PHASES[0].id)
+  const phase = phases.find(p => p.id === selectedPhase)
   const statusConfig = buildStatusConfig(data.appSettings)
 
   return (
@@ -421,7 +491,7 @@ export default function MatrixView({
 
       {/* Phase selector */}
       <div style={{ display: 'flex', gap: '8px', marginBottom: '20px', flexWrap: 'wrap' }}>
-        {PHASES.map(p => (
+        {phases.map(p => (
           <button
             key={p.id}
             onClick={() => setSelectedPhase(p.id)}
@@ -435,7 +505,7 @@ export default function MatrixView({
               transition: 'all 0.15s ease',
             }}
           >
-            Fase {p.number} — {p.name}
+            {p.emoji ? p.emoji + ' ' : ''}Fase {p.number} — {p.name}
           </button>
         ))}
       </div>
@@ -477,6 +547,7 @@ export default function MatrixView({
                   onReorderSection={reorderPhaseSection}
                   onUpdateTitleOverride={updatePhaseTitleOverride}
                   onUpdateNote={updatePhaseNote}
+                  onMovePhaseTask={movePhaseTask}
                   sectionIndex={si}
                 />
               ))}

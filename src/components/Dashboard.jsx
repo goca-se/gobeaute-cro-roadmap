@@ -3,6 +3,8 @@ import ProgressBar from './ProgressBar'
 import { getGlobalStats, getBrandPhaseStats, getPhaseGlobalStats, getSectionStats, getPctColor, getPctBg } from '../utils/stats'
 import { VISIBLE_BRANDS, PHASES } from '../data/phases'
 
+// PHASES used as fallback; mergedPhases prop overrides at runtime
+
 function StatCard({ value, label, color, bg, icon }) {
   return (
     <div style={{ background: 'white', border: '1px solid #E7E2DA', borderRadius: '12px', padding: '20px 24px', display: 'flex', alignItems: 'center', gap: '16px' }}>
@@ -33,9 +35,9 @@ function getSectionGlobalStats(data, section) {
   return { done, in_progress, pending, total, pct: total > 0 ? Math.round((done / total) * 100) : 0 }
 }
 
-function PhaseAccordion({ phase, data }) {
+function PhaseAccordion({ phase, data, phases }) {
   const [open, setOpen] = useState(false)
-  const stats = getPhaseGlobalStats(data, phase.id)
+  const stats = getPhaseGlobalStats(data, phase.id, phases)
 
   return (
     <div style={{ background: 'white', border: '1px solid #E7E2DA', borderRadius: '10px', borderLeft: `3px solid ${phase.color}`, overflow: 'hidden' }}>
@@ -72,7 +74,7 @@ function PhaseAccordion({ phase, data }) {
               return (
                 <div key={section.id} style={{ background: 'white', borderRadius: '8px', padding: '12px 16px', border: '1px solid #E7E2DA' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                    <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: '13px', fontWeight: 500, color: '#1C1917' }}>{section.name}</span>
+                    <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: '13px', fontWeight: 500, color: '#1C1917' }}>{section.emoji ? section.emoji + ' ' : ''}{section.name}</span>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                       <span style={{ fontSize: '11px', color: '#9CA3AF' }}>
                         {ss.done}/{ss.total} itens
@@ -108,7 +110,7 @@ function PhaseAccordion({ phase, data }) {
 
 const TOTAL_WEEKS = 30
 
-function CronogramaGeral() {
+function CronogramaGeral({ phases = PHASES }) {
   return (
     <div>
       <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: '11px', fontWeight: 700, color: '#A8A29E', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>
@@ -122,7 +124,7 @@ function CronogramaGeral() {
         {/* Gantt bar */}
         <div style={{ marginBottom: '20px' }}>
           <div style={{ display: 'flex', height: '36px', borderRadius: '8px', overflow: 'hidden', gap: '2px' }}>
-            {PHASES.map(phase => {
+            {phases.map(phase => {
               const widthPct = ((phase.endWeek - phase.startWeek + 1) / TOTAL_WEEKS) * 100
               return (
                 <div
@@ -134,7 +136,7 @@ function CronogramaGeral() {
                   }}
                 >
                   <span style={{ fontFamily: "'Syne', sans-serif", fontSize: '11px', fontWeight: 700, color: 'white', letterSpacing: '0.5px' }}>
-                    Fase {phase.number}
+                    {phase.emoji ? phase.emoji + ' ' : ''}Fase {phase.number}
                   </span>
                 </div>
               )
@@ -142,7 +144,7 @@ function CronogramaGeral() {
           </div>
           {/* Week labels */}
           <div style={{ display: 'flex', marginTop: '4px' }}>
-            {PHASES.map(phase => {
+            {phases.map(phase => {
               const widthPct = ((phase.endWeek - phase.startWeek + 1) / TOTAL_WEEKS) * 100
               return (
                 <div key={phase.id} style={{ width: `${widthPct}%`, flexShrink: 0 }}>
@@ -157,9 +159,9 @@ function CronogramaGeral() {
 
         {/* Phase cards */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
-          {PHASES.map((phase, i) => (
+          {phases.map((phase, i) => (
             <div key={phase.id} style={{ border: `1px solid ${phase.colorMuted}`, borderRadius: '10px', padding: '16px', background: phase.colorLight, position: 'relative' }}>
-              {i < PHASES.length - 1 && (
+              {i < phases.length - 1 && (
                 <div style={{
                   position: 'absolute', right: '-8px', top: '50%', transform: 'translateY(-50%)',
                   zIndex: 1, width: '16px', height: '16px', background: 'white', border: '1px solid #E7E2DA',
@@ -194,8 +196,9 @@ function CronogramaGeral() {
   )
 }
 
-export default function Dashboard({ data, onNavigateBrandPhase }) {
-  const global = getGlobalStats(data)
+export default function Dashboard({ data, mergedPhases, onNavigateBrandPhase }) {
+  const phases = mergedPhases || PHASES
+  const global = getGlobalStats(data, phases)
 
   return (
     <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '32px 24px' }}>
@@ -214,8 +217,8 @@ export default function Dashboard({ data, onNavigateBrandPhase }) {
           Progresso por fase
         </h2>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-          {PHASES.map(phase => (
-            <PhaseAccordion key={phase.id} phase={phase} data={data} />
+          {phases.map(phase => (
+            <PhaseAccordion key={phase.id} phase={phase} data={data} phases={phases} />
           ))}
         </div>
       </div>
@@ -232,9 +235,9 @@ export default function Dashboard({ data, onNavigateBrandPhase }) {
                 <th style={{ padding: '12px 20px', textAlign: 'left', fontFamily: "'Syne', sans-serif", fontSize: '11px', fontWeight: 600, color: '#A8A29E', textTransform: 'uppercase', letterSpacing: '0.6px', width: '200px' }}>
                   Marca
                 </th>
-                {PHASES.map(phase => (
+                {phases.map(phase => (
                   <th key={phase.id} style={{ padding: '12px 16px', textAlign: 'center', fontFamily: "'Syne', sans-serif", fontSize: '11px', fontWeight: 600, letterSpacing: '0.6px', color: phase.color, textTransform: 'uppercase' }}>
-                    Fase {phase.number}
+                    {phase.emoji ? phase.emoji + ' ' : ''}Fase {phase.number}
                     <div style={{ fontSize: '10px', fontWeight: 400, color: '#A8A29E', textTransform: 'none', letterSpacing: 0, marginTop: '1px' }}>
                       {phase.name}
                     </div>
@@ -262,8 +265,8 @@ export default function Dashboard({ data, onNavigateBrandPhase }) {
                       </div>
                     </div>
                   </td>
-                  {PHASES.map(phase => {
-                    const stats = getBrandPhaseStats(data, brand.id, phase.id)
+                  {phases.map(phase => {
+                    const stats = getBrandPhaseStats(data, brand.id, phase.id, phases)
                     const pctColor = getPctColor(stats.pct)
                     const pctBg = getPctBg(stats.pct)
                     return (
@@ -298,7 +301,7 @@ export default function Dashboard({ data, onNavigateBrandPhase }) {
 
       {/* Cronograma geral */}
       <div style={{ marginBottom: '32px' }}>
-        <CronogramaGeral />
+        <CronogramaGeral phases={phases} />
       </div>
 
       {/* Global stats — moved to bottom */}
