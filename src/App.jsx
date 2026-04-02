@@ -6,7 +6,10 @@ import MatrixView from './components/MatrixView'
 import ActivityLog from './components/ActivityLog'
 import SettingsView from './components/SettingsView'
 import AnalyticsView from './components/AnalyticsView'
+import LoginScreen from './components/LoginScreen'
 import { useCROData } from './hooks/useCROData'
+import { useAuth } from './hooks/useAuth'
+import { isConfigured } from './lib/supabase'
 
 const PATH_TO_VIEW = {
   '/overview': 'dashboard',
@@ -20,7 +23,7 @@ const VIEW_TO_PATH = Object.fromEntries(
   Object.entries(PATH_TO_VIEW).map(([k, v]) => [v, k])
 )
 
-export default function App() {
+function AppInner({ user, signOut }) {
   const {
     data, activityLog,
     syncState, lastSynced,
@@ -75,6 +78,8 @@ export default function App() {
         syncState={syncState}
         lastSynced={lastSynced}
         appSettings={data.appSettings}
+        user={user}
+        onSignOut={signOut}
       />
       <main>
         {view === 'dashboard' && (
@@ -140,4 +145,33 @@ export default function App() {
       </main>
     </div>
   )
+}
+
+function getStoredAppSettings() {
+  try {
+    const raw = localStorage.getItem('gobeaute_cro_data')
+    return raw ? JSON.parse(raw)?.appSettings ?? null : null
+  } catch {
+    return null
+  }
+}
+
+export default function App() {
+  const { user, loading: authLoading, error: authError, signInWithGoogle, signOut } = useAuth()
+
+  if (isConfigured && authLoading) {
+    return (
+      <div style={{ minHeight: '100vh', background: 'var(--canvas)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div className="grain-overlay" />
+        <div style={{ width: '28px', height: '28px', border: '2.5px solid #E7E2DA', borderTopColor: '#1D9E75', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      </div>
+    )
+  }
+
+  if (isConfigured && !user) {
+    return <LoginScreen onLogin={signInWithGoogle} error={authError} appSettings={getStoredAppSettings()} />
+  }
+
+  return <AppInner user={user} signOut={signOut} />
 }

@@ -6,6 +6,11 @@ const key = import.meta.env.VITE_SUPABASE_ANON_KEY
 export const supabase = (url && key && url !== 'https://SEU_PROJETO.supabase.co')
   ? createClient(url, key, {
       realtime: { params: { eventsPerSecond: 10 } },
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+      },
     })
   : null
 

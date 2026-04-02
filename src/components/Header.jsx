@@ -64,7 +64,57 @@ function GroupLogo({ logoUrl, groupName }) {
   )
 }
 
-export default function Header({ view, onNavigate, lastUpdated, syncState, lastSynced, appSettings }) {
+function UserMenu({ user, onSignOut }) {
+  const [open, setOpen] = useState(false)
+  const avatarUrl = user?.user_metadata?.avatar_url
+  const fullName = user?.user_metadata?.full_name || user?.email?.split('@')[0] || '?'
+  const initials = fullName.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase()
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <button
+        onClick={() => setOpen(o => !o)}
+        style={{ display: 'flex', alignItems: 'center', gap: '8px', background: 'none', border: '1px solid #E7E2DA', borderRadius: '20px', padding: '4px 10px 4px 4px', cursor: 'pointer' }}
+      >
+        {avatarUrl ? (
+          <img src={avatarUrl} alt={fullName} style={{ width: '26px', height: '26px', borderRadius: '50%', objectFit: 'cover' }} />
+        ) : (
+          <div style={{ width: '26px', height: '26px', borderRadius: '50%', background: 'linear-gradient(135deg, #1D9E75, #16845F)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Syne', sans-serif", fontWeight: 700, fontSize: '11px', color: 'white' }}>
+            {initials}
+          </div>
+        )}
+        <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: '12px', color: '#44403C', maxWidth: '120px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          {fullName}
+        </span>
+      </button>
+
+      {open && (
+        <>
+          <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setOpen(false)} />
+          <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', background: 'white', border: '1px solid #E7E2DA', borderRadius: '10px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', minWidth: '180px', overflow: 'hidden', zIndex: 100 }}>
+            <div style={{ padding: '12px 14px', borderBottom: '1px solid #F5F0E8' }}>
+              <div style={{ fontFamily: "'Syne', sans-serif", fontWeight: 600, fontSize: '13px', color: '#1C1917' }}>{fullName}</div>
+              <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: '11px', color: '#A8A29E', marginTop: '2px' }}>{user?.email}</div>
+            </div>
+            <button
+              onClick={() => { setOpen(false); onSignOut() }}
+              style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '10px 14px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: "'Outfit', sans-serif", fontSize: '13px', color: '#78716C', textAlign: 'left' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#FFF8F5'}
+              onMouseLeave={e => e.currentTarget.style.background = 'none'}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M5.25 2.333H2.333A1.167 1.167 0 0 0 1.167 3.5v7a1.167 1.167 0 0 0 1.166 1.167H5.25M9.333 10.5 12.833 7l-3.5-3.5M12.833 7H5.25" stroke="#78716C" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+              Sair
+            </button>
+          </div>
+        </>
+      )}
+    </div>
+  )
+}
+
+export default function Header({ view, onNavigate, lastUpdated, syncState, lastSynced, appSettings, user, onSignOut }) {
   const groupName = appSettings?.groupName || 'Gobeaute'
   const logoUrl = appSettings?.logoUrl || ''
 
@@ -93,13 +143,19 @@ export default function Header({ view, onNavigate, lastUpdated, syncState, lastS
             ))}
           </nav>
 
-          {/* Right: sync + timestamp */}
+          {/* Right: sync + timestamp + user */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexShrink: 0 }}>
             <SyncIndicator syncState={syncState} lastSynced={lastSynced} />
             <div style={{ width: '1px', height: '16px', background: '#E7E2DA' }} />
             <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: '11px', color: '#A8A29E', whiteSpace: 'nowrap' }}>
               {formatDate(lastUpdated)}
             </span>
+            {user && onSignOut && (
+              <>
+                <div style={{ width: '1px', height: '16px', background: '#E7E2DA' }} />
+                <UserMenu user={user} onSignOut={onSignOut} />
+              </>
+            )}
           </div>
         </div>
       </header>
