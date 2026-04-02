@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import Header from './components/Header'
 import Dashboard from './components/Dashboard'
 import BrandView from './components/BrandView'
@@ -7,6 +7,18 @@ import ActivityLog from './components/ActivityLog'
 import SettingsView from './components/SettingsView'
 import AnalyticsView from './components/AnalyticsView'
 import { useCROData } from './hooks/useCROData'
+
+const PATH_TO_VIEW = {
+  '/overview': 'dashboard',
+  '/marcas': 'brand',
+  '/matriz-progresso': 'matrix',
+  '/analytics': 'analytics',
+  '/historico': 'log',
+  '/config': 'settings',
+}
+const VIEW_TO_PATH = Object.fromEntries(
+  Object.entries(PATH_TO_VIEW).map(([k, v]) => [v, k])
+)
 
 export default function App() {
   const {
@@ -23,13 +35,33 @@ export default function App() {
     exportJSON, exportCSV,
   } = useCROData()
 
-  const [view, setView] = useState('dashboard')
+  const [view, setView] = useState(() => PATH_TO_VIEW[window.location.pathname] ?? 'dashboard')
   const [selectedBrand, setSelectedBrand] = useState('apice')
   const [selectedPhase, setSelectedPhase] = useState(null)
+
+  useEffect(() => {
+    window.history.replaceState({}, '', VIEW_TO_PATH[view] ?? '/overview')
+  }, [])
+
+  useEffect(() => {
+    function onPopState() {
+      setView(PATH_TO_VIEW[window.location.pathname] ?? 'dashboard')
+      setSelectedPhase(null)
+    }
+    window.addEventListener('popstate', onPopState)
+    return () => window.removeEventListener('popstate', onPopState)
+  }, [])
+
+  function navigate(v) {
+    window.history.pushState({}, '', VIEW_TO_PATH[v] ?? '/overview')
+    setView(v)
+    setSelectedPhase(null)
+  }
 
   function handleNavigateBrandPhase(brandId, phaseId) {
     setSelectedBrand(brandId)
     setSelectedPhase(phaseId)
+    window.history.pushState({}, '', VIEW_TO_PATH['brand'])
     setView('brand')
   }
 
@@ -38,7 +70,7 @@ export default function App() {
       <div className="grain-overlay" />
       <Header
         view={view}
-        onNavigate={v => { setView(v); setSelectedPhase(null) }}
+        onNavigate={navigate}
         lastUpdated={data.lastUpdated}
         syncState={syncState}
         lastSynced={lastSynced}
