@@ -9,7 +9,7 @@ import AnalyticsView from './components/AnalyticsView'
 import LoginScreen from './components/LoginScreen'
 import { useCROData } from './hooks/useCROData'
 import { useAuth } from './hooks/useAuth'
-import { isConfigured } from './lib/supabase'
+import { isConfigured, supabase } from './lib/supabase'
 
 const PATH_TO_VIEW = {
   '/overview': 'dashboard',
@@ -147,17 +147,21 @@ function AppInner({ user, signOut }) {
   )
 }
 
-function getStoredAppSettings() {
-  try {
-    const raw = localStorage.getItem('gobeaute_cro_data')
-    return raw ? JSON.parse(raw)?.appSettings ?? null : null
-  } catch {
-    return null
-  }
-}
-
 export default function App() {
   const { user, loading: authLoading, error: authError, signInWithGoogle, signOut } = useAuth()
+  const [loginAppSettings, setLoginAppSettings] = useState(null)
+
+  useEffect(() => {
+    if (!supabase) return
+    supabase
+      .from('app_settings')
+      .select('group_name, logo_url')
+      .eq('id', 'main')
+      .single()
+      .then(({ data }) => {
+        if (data) setLoginAppSettings({ groupName: data.group_name, logoUrl: data.logo_url })
+      })
+  }, [])
 
   if (isConfigured && authLoading) {
     return (
@@ -170,7 +174,7 @@ export default function App() {
   }
 
   if (isConfigured && !user) {
-    return <LoginScreen onLogin={signInWithGoogle} error={authError} appSettings={getStoredAppSettings()} />
+    return <LoginScreen onLogin={signInWithGoogle} error={authError} appSettings={loginAppSettings} />
   }
 
   return <AppInner user={user} signOut={signOut} />
