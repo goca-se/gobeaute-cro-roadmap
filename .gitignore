@@ -19,3 +19,8 @@ dist/
 # Claude Code local settings (project-specific, not shared)
 .claude/settings.local.json
 melhorias-incrementais.md
+
+# dotcontext generated files (per-session, not versioned)
+.context/prp/
+.context/discoveries/
+.context/bugs/

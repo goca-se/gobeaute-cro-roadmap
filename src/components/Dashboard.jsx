@@ -45,14 +45,14 @@ function PhaseAccordion({ phase, data, phases }) {
         onClick={() => setOpen(o => !o)}
         style={{ width: '100%', padding: '14px 20px', background: 'none', border: 'none', cursor: 'pointer', textAlign: 'left' }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ fontFamily: "'Syne', sans-serif", fontSize: '11px', fontWeight: 700, color: phase.color, textTransform: 'uppercase', letterSpacing: '0.8px' }}>Fase {phase.number}</span>
-            <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: '13px', color: '#1C1917', fontWeight: 500 }}>{phase.name}</span>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px', marginBottom: '10px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+            <span style={{ fontFamily: "'Syne', sans-serif", fontSize: '11px', fontWeight: 700, color: phase.color, textTransform: 'uppercase', letterSpacing: '0.8px', flexShrink: 0 }}>Fase {phase.number}</span>
+            <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: '13px', color: '#1C1917', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{phase.name}</span>
           </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-            <span style={{ fontSize: '11px', color: '#9CA3AF' }}>
-              {stats.done} finalizados · {stats.in_progress} em andamento · {stats.pending} pendentes
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+            <span style={{ fontSize: '11px', color: '#9CA3AF', display: 'none' }} className="phase-stats-desktop">
+              {stats.done} fin. · {stats.in_progress} and. · {stats.pending} pend.
             </span>
             <span style={{
               fontSize: '12px', color: '#9CA3AF', display: 'inline-block',
@@ -158,7 +158,7 @@ function CronogramaGeral({ phases = PHASES }) {
         </div>
 
         {/* Phase cards */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+        <div className="grid-3">
           {phases.map((phase, i) => (
             <div key={phase.id} style={{ border: `1px solid ${phase.colorMuted}`, borderRadius: '10px', padding: '16px', background: phase.colorLight, position: 'relative' }}>
               {i < phases.length - 1 && (
@@ -201,9 +201,9 @@ export default function Dashboard({ data, mergedPhases, onNavigateBrandPhase }) 
   const global = getGlobalStats(data, phases)
 
   return (
-    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '32px 24px' }}>
+    <div className="page-pad">
       <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: '26px', fontWeight: 400, color: '#1C1917', letterSpacing: '-0.5px', marginBottom: '4px' }}>
+        <h1 className="page-title" style={{ fontFamily: "'Fraunces', serif", fontSize: '26px', fontWeight: 400, color: '#1C1917', letterSpacing: '-0.5px', marginBottom: '4px' }}>
           Visão Geral
         </h1>
         <p style={{ color: '#78716C', fontSize: '13px', fontFamily: "'Outfit', sans-serif" }}>
@@ -228,8 +228,8 @@ export default function Dashboard({ data, mergedPhases, onNavigateBrandPhase }) 
         <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: '11px', fontWeight: 700, color: '#A8A29E', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>
           Conclusão por marca e fase
         </h2>
-        <div style={{ background: 'white', border: '1px solid #E7E2DA', borderRadius: '12px', overflow: 'hidden' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+        <div className="table-scroll" style={{ background: 'white', border: '1px solid #E7E2DA', borderRadius: '12px', overflow: 'hidden' }}>
+          <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '500px' }}>
             <thead>
               <tr style={{ borderBottom: '1px solid #F0EDE8' }}>
                 <th style={{ padding: '12px 20px', textAlign: 'left', fontFamily: "'Syne', sans-serif", fontSize: '11px', fontWeight: 600, color: '#A8A29E', textTransform: 'uppercase', letterSpacing: '0.6px', width: '200px' }}>
@@ -270,12 +270,12 @@ export default function Dashboard({ data, mergedPhases, onNavigateBrandPhase }) 
                     const pctColor = getPctColor(stats.pct)
                     const pctBg = getPctBg(stats.pct)
                     return (
-                      <td key={phase.id} style={{ padding: '10px 16px', textAlign: 'center' }}>
+                      <td key={phase.id} className="dashboard-matrix-cell" style={{ padding: '10px 16px', textAlign: 'center' }}>
                         <button
                           onClick={() => onNavigateBrandPhase(brand.id, phase.id)}
                           style={{ background: stats.pct === 0 ? '#F9FAFB' : pctBg, border: `1px solid ${stats.pct === 0 ? '#E5E7EB' : pctBg}`, borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', width: '100%', minWidth: '100px' }}
                         >
-                          <div style={{ fontFamily: "'Fraunces', serif", fontSize: '20px', fontWeight: 400, color: stats.pct === 0 ? '#D1D5DB' : pctColor, lineHeight: 1, letterSpacing: '-0.5px' }}>
+                          <div className="dashboard-matrix-pct" style={{ fontFamily: "'Fraunces', serif", fontSize: '20px', fontWeight: 400, color: stats.pct === 0 ? '#D1D5DB' : pctColor, lineHeight: 1, letterSpacing: '-0.5px' }}>
                             {stats.pct}%
                           </div>
                           <div style={{ marginTop: '6px' }}>
@@ -309,7 +309,7 @@ export default function Dashboard({ data, mergedPhases, onNavigateBrandPhase }) 
         <h2 style={{ fontFamily: "'Syne', sans-serif", fontSize: '11px', fontWeight: 700, color: '#A8A29E', textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '10px' }}>
           Resumo de tarefas
         </h2>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+        <div className="grid-3">
           <StatCard value={global.done} label="finalizados" color="#16A34A" bg="#F0FDF4" icon="✓" />
           <StatCard value={global.in_progress} label="em andamento" color="#D97706" bg="#FFFBEB" icon="◎" />
           <StatCard value={global.pending} label="pendentes" color="#9CA3AF" bg="#F9FAFB" icon="○" />

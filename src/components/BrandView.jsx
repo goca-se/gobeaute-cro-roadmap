@@ -246,7 +246,7 @@ function DragHandle({ ...props }) {
 // ── TaskRow ────────────────────────────────────────────────────────────────
 
 function TaskRow({
-  taskId, label, task, isCustom, tooltip,
+  taskId, brandId, label, task, isCustom, tooltip,
   onUpdate, onDelete, onHide,
   phaseColor,
   // selection
@@ -381,6 +381,8 @@ function TaskRow({
             value={notesDraft}
             onChange={v => { setNotesDraft(v); onUpdate('description', v) }}
             placeholder="Observações, contexto, links, bloqueios..."
+            brandId={brandId}
+            reqId={taskId}
           />
         </div>
       )}
@@ -520,6 +522,7 @@ function SectionBlock({
           <TaskRow
             key={id}
             taskId={id}
+            brandId={brandId}
             label={item.label}
             tooltip={item.tooltip}
             task={item.task}
@@ -859,10 +862,10 @@ export default function BrandView({
 
   return (
     <CfgCtx.Provider value={{ statusConfig, statusOrder: STATUS_ORDER, responsibleAreas }}>
-    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 24px', paddingBottom: selectedIds.size > 0 ? '100px' : '32px' }}>
+    <div style={{ maxWidth: '1200px', margin: '0 auto', padding: '32px 24px', paddingBottom: selectedIds.size > 0 ? '100px' : '32px' }} className="page-pad brand-page">
       {/* Page header */}
       <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: '26px', fontWeight: 400, color: '#1C1917', letterSpacing: '-0.5px', marginBottom: '4px' }}>Por Marca</h1>
+        <h1 className="page-title" style={{ fontFamily: "'Fraunces', serif", fontSize: '26px', fontWeight: 400, color: '#1C1917', letterSpacing: '-0.5px', marginBottom: '4px' }}>Por Marca</h1>
         <p style={{ color: '#78716C', fontSize: '13px', fontFamily: "'Outfit', sans-serif" }}>
           Clique no título para editar · arraste ⠿ para reordenar · marque itens para editar em massa
         </p>

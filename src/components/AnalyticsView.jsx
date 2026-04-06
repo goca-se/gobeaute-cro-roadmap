@@ -66,14 +66,14 @@ export default function AnalyticsView({ appSettings }) {
 
   if (!iframeUrl) {
     return (
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 'calc(100vh - 56px)' }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: 'calc(100vh - 52px)' }}>
         <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: '13px', color: '#A8A29E' }}>Carregando dashboard...</span>
       </div>
     )
   }
 
   return (
-    <div style={{ height: 'calc(100vh - 56px)', display: 'flex', flexDirection: 'column' }}>
+    <div className="analytics-frame" style={{ height: 'calc(100vh - 52px)', display: 'flex', flexDirection: 'column' }}>
       <iframe
         key={iframeUrl}
         src={iframeUrl}

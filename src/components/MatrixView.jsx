@@ -467,11 +467,11 @@ export default function MatrixView({
 
   return (
     <MatrixCfgCtx.Provider value={{ statusConfig }}>
-    <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '32px 24px' }}>
+    <div className="page-pad">
       {/* Page header */}
       <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
         <div>
-          <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: '26px', fontWeight: 400, color: '#1C1917', letterSpacing: '-0.5px', marginBottom: '4px' }}>
+          <h1 className="page-title" style={{ fontFamily: "'Fraunces', serif", fontSize: '26px', fontWeight: 400, color: '#1C1917', letterSpacing: '-0.5px', marginBottom: '4px' }}>
             Por Fase
           </h1>
           <p style={{ color: '#78716C', fontSize: '13px', fontFamily: "'Outfit', sans-serif" }}>
@@ -512,7 +512,7 @@ export default function MatrixView({
 
       {/* Matrix table */}
       {phase && (
-        <div style={{ background: 'white', border: '1px solid #E7E2DA', borderRadius: '12px', overflow: 'auto' }}>
+        <div className="table-scroll" style={{ background: 'white', border: '1px solid #E7E2DA', borderRadius: '12px', overflow: 'auto' }}>
           <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: '800px' }}>
             <thead>
               <tr style={{ borderBottom: '2px solid #E7E2DA', background: 'white', position: 'sticky', top: 0, zIndex: 10 }}>
