@@ -15,3 +15,5 @@ export const supabase = (url && key && url !== 'https://SEU_PROJETO.supabase.co'
   : null
 
 export const isConfigured = !!supabase
+
+export const IMAGES_BUCKET = 'task-images'
