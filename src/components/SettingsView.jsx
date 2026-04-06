@@ -805,9 +805,9 @@ export default function SettingsView({
   const brandSettings = data.brandSettings || {}
 
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '32px 24px' }}>
+    <div className="page-pad-narrow">
       <div style={{ marginBottom: '28px' }}>
-        <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: '26px', fontWeight: 400, color: '#1C1917', letterSpacing: '-0.5px', marginBottom: '4px' }}>
+        <h1 className="page-title" style={{ fontFamily: "'Fraunces', serif", fontSize: '26px', fontWeight: 400, color: '#1C1917', letterSpacing: '-0.5px', marginBottom: '4px' }}>
           Configurações
         </h1>
         <p style={{ color: '#78716C', fontSize: '13px', fontFamily: "'Outfit', sans-serif" }}>

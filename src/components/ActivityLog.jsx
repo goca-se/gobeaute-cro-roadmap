@@ -36,30 +36,30 @@ export default function ActivityLog({ activityLog }) {
   const entries = activityLog.slice(0, 50)
 
   return (
-    <div style={{ maxWidth: '900px', margin: '0 auto', padding: '32px 24px' }}>
+    <div className="page-pad-narrow">
       <div style={{ marginBottom: '24px', display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '16px' }}>
         <div>
-          <h1 style={{ fontFamily: "'Fraunces', serif", fontSize: '26px', fontWeight: 400, color: '#1C1917', letterSpacing: '-0.5px', marginBottom: '4px' }}>
+          <h1 className="page-title" style={{ fontFamily: "'Fraunces', serif", fontSize: '26px', fontWeight: 400, color: '#1C1917', letterSpacing: '-0.5px', marginBottom: '4px' }}>
             Histórico
           </h1>
           <p style={{ color: '#78716C', fontSize: '13px', fontFamily: "'Outfit', sans-serif" }}>
-            Últimas {entries.length} alterações de status · {activityLog.length} no total
+            Últimas {entries.length} alterações · {activityLog.length} no total
           </p>
         </div>
         <button
           onClick={() => exportLogCSV(activityLog)}
           disabled={!activityLog.length}
-          style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 16px', background: activityLog.length ? 'white' : '#F9FAFB', border: '1px solid #E7E2DA', borderRadius: '8px', cursor: activityLog.length ? 'pointer' : 'not-allowed', fontFamily: "'Syne', sans-serif", fontSize: '12px', fontWeight: 600, color: activityLog.length ? '#57534E' : '#A8A29E', whiteSpace: 'nowrap' }}
+          style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', background: activityLog.length ? 'white' : '#F9FAFB', border: '1px solid #E7E2DA', borderRadius: '8px', cursor: activityLog.length ? 'pointer' : 'not-allowed', fontFamily: "'Syne', sans-serif", fontSize: '12px', fontWeight: 600, color: activityLog.length ? '#57534E' : '#A8A29E', whiteSpace: 'nowrap', flexShrink: 0 }}
         >
           <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
             <path d="M7 1v8M4 6l3 3 3-3M1 10v1a2 2 0 002 2h8a2 2 0 002-2v-1" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round" />
           </svg>
-          Exportar CSV
+          CSV
         </button>
       </div>
 
       {!entries.length ? (
-        <div style={{ background: 'white', border: '1px solid #E7E2DA', borderRadius: '12px', padding: '48px', textAlign: 'center' }}>
+        <div style={{ background: 'white', border: '1px solid #E7E2DA', borderRadius: '12px', padding: '48px 24px', textAlign: 'center' }}>
           <div style={{ fontSize: '32px', marginBottom: '12px' }}>📋</div>
           <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: '14px', color: '#78716C' }}>
             Nenhuma alteração registrada ainda.<br />
@@ -68,8 +68,8 @@ export default function ActivityLog({ activityLog }) {
         </div>
       ) : (
         <div style={{ background: 'white', border: '1px solid #E7E2DA', borderRadius: '12px', overflow: 'hidden' }}>
-          {/* Header */}
-          <div style={{ display: 'grid', gridTemplateColumns: '150px 100px 1fr 130px 130px', padding: '10px 20px', background: '#FAFAF8', borderBottom: '1px solid #F0EDE8' }}>
+          {/* Desktop column header */}
+          <div className="log-grid-header" style={{ display: 'grid', gridTemplateColumns: '150px 100px 1fr 130px 130px', padding: '10px 20px', background: '#FAFAF8', borderBottom: '1px solid #F0EDE8' }}>
             {['Quando', 'Marca', 'Requisito', 'De', 'Para'].map(col => (
               <span key={col} style={{ fontFamily: "'Syne', sans-serif", fontSize: '10px', fontWeight: 700, color: '#A8A29E', textTransform: 'uppercase', letterSpacing: '0.6px' }}>
                 {col}
@@ -80,21 +80,24 @@ export default function ActivityLog({ activityLog }) {
           {entries.map((entry, i) => (
             <div
               key={entry.id}
+              className="log-grid-row"
               style={{ display: 'grid', gridTemplateColumns: '150px 100px 1fr 130px 130px', padding: '10px 20px', borderBottom: i < entries.length - 1 ? '1px solid #F7F4EF' : 'none', alignItems: 'center' }}
             >
-              <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: '12px', color: '#78716C' }}>
+              <span className="log-row-when" style={{ fontFamily: "'Outfit', sans-serif", fontSize: '12px', color: '#78716C' }}>
                 {formatTimestamp(entry.timestamp)}
               </span>
-              <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: '13px', fontWeight: 500, color: '#1C1917' }}>
+              <span className="log-row-brand" style={{ fontFamily: "'Outfit', sans-serif", fontSize: '13px', fontWeight: 500, color: '#1C1917' }}>
                 {entry.brandName}
               </span>
-              <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: '12px', color: '#57534E', paddingRight: '12px' }}>
+              <span className="log-row-req" style={{ fontFamily: "'Outfit', sans-serif", fontSize: '12px', color: '#57534E', paddingRight: '12px' }}>
                 {entry.reqLabel}
               </span>
-              <div><StatusBadge status={entry.oldStatus} size="sm" /></div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-                <span style={{ fontSize: '12px', color: '#D6D3D1' }}>→</span>
-                <StatusBadge status={entry.newStatus} size="sm" />
+              <div className="log-row-statuses" style={{ display: 'contents' }}>
+                <div><StatusBadge status={entry.oldStatus} size="sm" /></div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                  <span style={{ fontSize: '12px', color: '#D6D3D1' }}>→</span>
+                  <StatusBadge status={entry.newStatus} size="sm" />
+                </div>
               </div>
             </div>
           ))}

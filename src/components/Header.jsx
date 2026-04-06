@@ -40,12 +40,12 @@ function SyncIndicator({ syncState, lastSynced }) {
 }
 
 const TABS = [
-  { id: 'dashboard', label: 'Visão Geral' },
-  { id: 'brand', label: 'Por Marca' },
-  { id: 'matrix', label: 'Matriz de Progresso' },
-  { id: 'analytics', label: 'Analítico' },
-  { id: 'log', label: 'Histórico' },
-  { id: 'settings', label: 'Configurações' },
+  { id: 'dashboard', label: 'Visão Geral',  mobileLabel: 'Visão', mobileIcon: '⊞' },
+  { id: 'brand',     label: 'Por Marca',    mobileLabel: 'Marcas', mobileIcon: '◈' },
+  { id: 'matrix',    label: 'Matriz',       mobileLabel: 'Matriz', mobileIcon: '▦' },
+  { id: 'analytics', label: 'Analítico',    mobileLabel: 'Análise', mobileIcon: '◑' },
+  { id: 'log',       label: 'Histórico',    mobileLabel: 'Log',    mobileIcon: '◷' },
+  { id: 'settings',  label: 'Configurações',mobileLabel: 'Config', mobileIcon: '⊙' },
 ]
 
 function GroupLogo({ logoUrl, groupName }) {
@@ -122,7 +122,7 @@ export default function Header({ view, onNavigate, lastUpdated, syncState, lastS
     <>
       <style>{`@keyframes ping { 0%{transform:scale(1);opacity:0.5} 75%,100%{transform:scale(2);opacity:0} }`}</style>
       <header style={{ background: 'white', borderBottom: '1px solid #E7E2DA', position: 'sticky', top: 0, zIndex: 50 }}>
-        <div style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', gap: '28px', height: '56px' }}>
+        <div className="header-inner" style={{ maxWidth: '1400px', margin: '0 auto', padding: '0 24px', display: 'flex', alignItems: 'center', gap: '28px', height: '56px' }}>
 
           {/* Logo */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexShrink: 0 }}>
@@ -132,8 +132,8 @@ export default function Header({ view, onNavigate, lastUpdated, syncState, lastS
             </span>
           </div>
 
-          {/* Nav */}
-          <nav style={{ display: 'flex', alignItems: 'center', gap: '2px', flex: 1 }}>
+          {/* Nav — hidden on mobile, replaced by bottom nav */}
+          <nav className="header-nav" style={{ display: 'flex', alignItems: 'center', gap: '2px', flex: 1 }}>
             {TABS.map(tab => (
               <button key={tab.id} onClick={() => onNavigate(tab.id)}
                 className={`nav-tab${view === tab.id ? ' active' : ''}`}
@@ -144,21 +144,42 @@ export default function Header({ view, onNavigate, lastUpdated, syncState, lastS
           </nav>
 
           {/* Right: sync + timestamp + user */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexShrink: 0 }}>
+          <div className="header-meta" style={{ display: 'flex', alignItems: 'center', gap: '14px', flexShrink: 0 }}>
             <SyncIndicator syncState={syncState} lastSynced={lastSynced} />
             <div style={{ width: '1px', height: '16px', background: '#E7E2DA' }} />
             <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: '11px', color: '#A8A29E', whiteSpace: 'nowrap' }}>
               {formatDate(lastUpdated)}
             </span>
-            {user && onSignOut && (
-              <>
-                <div style={{ width: '1px', height: '16px', background: '#E7E2DA' }} />
-                <UserMenu user={user} onSignOut={onSignOut} />
-              </>
-            )}
           </div>
+
+          {/* User menu — always visible */}
+          {user && onSignOut && (
+            <div style={{ flexShrink: 0, marginLeft: 'auto' }}>
+              <UserMenu user={user} onSignOut={onSignOut} />
+            </div>
+          )}
         </div>
       </header>
+
+      {/* Mobile bottom navigation */}
+      <nav className="mobile-nav" aria-label="Navegação principal">
+        {TABS.map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => onNavigate(tab.id)}
+            className={`mobile-nav-item${view === tab.id ? ' active' : ''}`}
+            aria-current={view === tab.id ? 'page' : undefined}
+          >
+            <span
+              className="mobile-nav-icon"
+              style={{ color: view === tab.id ? '#1D9E75' : '#A8A29E' }}
+            >
+              {tab.mobileIcon}
+            </span>
+            <span className="mobile-nav-label">{tab.mobileLabel}</span>
+          </button>
+        ))}
+      </nav>
     </>
   )
 }
