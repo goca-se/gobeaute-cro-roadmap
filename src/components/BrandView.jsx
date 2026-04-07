@@ -27,6 +27,63 @@ function buildResponsibleAreas(appSettings) {
   return Object.entries(RESPONSIBLE_CONFIG).map(([id, v]) => ({ id, ...v }))
 }
 
+// ── Sort logic ───────────────────────────────────────────────────────────────
+
+const PRIORITY_RANK = { high: 1, medium: 2, low: 3 }
+
+function sortTasks(ids, taskById, sortBy, statusOrder) {
+  if (!sortBy) return ids
+  const { field, dir } = sortBy
+  const mult = dir === 'asc' ? 1 : -1
+
+  return [...ids].sort((a, b) => {
+    const ta = taskById[a]?.task
+    const tb = taskById[b]?.task
+    let va, vb
+
+    if (field === 'priority') {
+      va = ta?.priority ? PRIORITY_RANK[ta.priority] : Infinity
+      vb = tb?.priority ? PRIORITY_RANK[tb.priority] : Infinity
+    } else if (field === 'deadline') {
+      va = ta?.deadline || null
+      vb = tb?.deadline || null
+      if (!va && !vb) return 0
+      if (!va) return 1
+      if (!vb) return -1
+      return mult * (va < vb ? -1 : va > vb ? 1 : 0)
+    } else if (field === 'status') {
+      va = statusOrder.indexOf(ta?.status || 'pending')
+      vb = statusOrder.indexOf(tb?.status || 'pending')
+      va = va === -1 ? Infinity : va
+      vb = vb === -1 ? Infinity : vb
+    } else if (field === 'assignee') {
+      va = ta?.assignee || null
+      vb = tb?.assignee || null
+    } else if (field === 'title') {
+      const la = taskById[a]
+      const lb = taskById[b]
+      va = (la?.task?.customTitle || la?.label || la?.task?.title || '').toLowerCase()
+      vb = (lb?.task?.customTitle || lb?.label || lb?.task?.title || '').toLowerCase()
+    }
+
+    const aNull = va === null || va === Infinity || va === ''
+    const bNull = vb === null || vb === Infinity || vb === ''
+    if (aNull && bNull) return 0
+    if (aNull) return 1
+    if (bNull) return -1
+
+    if (va < vb) return -1 * mult
+    if (va > vb) return 1 * mult
+    return 0
+  })
+}
+
+function toggleSort(current, field) {
+  if (!current || current.field !== field) return { field, dir: 'asc' }
+  if (current.dir === 'asc') return { field, dir: 'desc' }
+  return null
+}
+
 // ── Filter logic ────────────────────────────────────────────────────────────
 
 const EMPTY_FILTERS = { search: '', statuses: [], responsible: [], priorities: [], overdueOnly: false }
@@ -408,6 +465,8 @@ function SectionBlock({
   const [draggingId, setDraggingId] = useState(null)
   const [dragOverId, setDragOverId] = useState(null)
   const [showHidden, setShowHidden] = useState(false)
+  const [sortBy, setSortBy] = useState(null)
+  const { statusOrder } = useCfg()
 
   // Build ordered list of visible task IDs
   const visibleReqIds = section.requirements.map(r => r.id).filter(id => !hiddenReqIds.has(id))
@@ -434,6 +493,9 @@ function SectionBlock({
   customTasksList.forEach(ct => {
     taskById[ct.id] = { id: ct.id, label: ct.title, task: ct, isCustom: true }
   })
+
+  // Apply sort (visual only, after drag-order)
+  if (sortBy) orderedIds = sortTasks(orderedIds, taskById, sortBy, statusOrder)
 
   // Apply filters
   const isFiltering = countActiveFilters(filters) > 0
@@ -493,16 +555,25 @@ function SectionBlock({
         <div style={{ width: '24px', flexShrink: 0 }} />
         <div style={{ width: '16px', flexShrink: 0 }} />
         {[
-          { label: 'Prioridade', width: '88px' },
-          { label: 'Tarefa', flex: true },
-          { label: 'Status', width: '158px' },
-          { label: 'Responsável', width: '115px' },
-          { label: 'Prazo', width: '120px' },
-        ].map(col => (
-          <div key={col.label} style={{ width: col.width, flex: col.flex ? 1 : undefined, flexShrink: 0 }}>
-            <span style={{ fontFamily: "'Syne', sans-serif", fontSize: '10px', fontWeight: 600, color: '#A8A29E', textTransform: 'uppercase', letterSpacing: '0.4px' }}>{col.label}</span>
-          </div>
-        ))}
+          { label: 'Prioridade', width: '88px', sortField: 'priority' },
+          { label: 'Tarefa', flex: true, sortField: 'title' },
+          { label: 'Status', width: '158px', sortField: 'status' },
+          { label: 'Responsável', width: '115px', sortField: 'assignee' },
+          { label: 'Prazo', width: '120px', sortField: 'deadline' },
+        ].map(col => {
+          const isActive = sortBy?.field === col.sortField
+          const icon = isActive ? (sortBy.dir === 'asc' ? '↑' : '↓') : '↕'
+          return (
+            <div key={col.label} style={{ width: col.width, flex: col.flex ? 1 : undefined, flexShrink: 0 }}>
+              <button
+                onClick={() => setSortBy(toggleSort(sortBy, col.sortField))}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: 0, display: 'flex', alignItems: 'center', gap: '3px', fontFamily: "'Syne', sans-serif", fontSize: '10px', fontWeight: 600, color: isActive ? '#57534E' : '#A8A29E', textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                {col.label}
+                <span style={{ fontSize: '9px', opacity: isActive ? 1 : 0.6 }}>{icon}</span>
+              </button>
+            </div>
+          )
+        })}
         <div style={{ width: '30px', flexShrink: 0 }}>
           <span style={{ fontFamily: "'Syne', sans-serif", fontSize: '10px', fontWeight: 600, color: '#A8A29E', textTransform: 'uppercase', letterSpacing: '0.4px' }}>Obs.</span>
         </div>
@@ -654,16 +725,21 @@ function BulkActionBar({ count, brandId, onApply, onClear }) {
   const [bulkStatus, setBulkStatus] = useState('')
   const [bulkResponsible, setBulkResponsible] = useState('')
   const [bulkPriority, setBulkPriority] = useState('')
+  const [bulkDeadline, setBulkDeadline] = useState('')
+  const [bulkDeadlineClear, setBulkDeadlineClear] = useState(false)
 
-  const canApply = bulkStatus || bulkResponsible || bulkPriority
+  const canApply = bulkStatus || bulkResponsible || bulkPriority || bulkDeadline || bulkDeadlineClear
 
   const apply = () => {
     const updates = {}
     if (bulkStatus) updates.status = bulkStatus
     if (bulkResponsible) updates.assignee = bulkResponsible
     if (bulkPriority) updates.priority = bulkPriority
+    if (bulkDeadlineClear) updates.deadline = null
+    else if (bulkDeadline) updates.deadline = bulkDeadline
     onApply(updates)
     setBulkStatus(''); setBulkResponsible(''); setBulkPriority('')
+    setBulkDeadline(''); setBulkDeadlineClear(false)
   }
 
   return (
@@ -710,6 +786,21 @@ function BulkActionBar({ count, brandId, onApply, onClear }) {
         </select>
         <div style={{ position: 'absolute', right: '7px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '9px', color: '#9CA3AF' }}>▾</div>
       </div>
+
+      <div style={{ width: '1px', height: '20px', background: '#3F3B37', flexShrink: 0 }} />
+
+      {/* Deadline */}
+      <input type="date"
+        value={bulkDeadline}
+        disabled={bulkDeadlineClear}
+        onChange={e => { setBulkDeadline(e.target.value); setBulkDeadlineClear(false) }}
+        style={{ padding: '6px 10px', borderRadius: '8px', border: '1px solid #3F3B37', background: bulkDeadlineClear ? '#1C1917' : '#2A2724', color: bulkDeadline ? '#E7E2DA' : '#9CA3AF', opacity: bulkDeadlineClear ? 0.4 : 1, fontSize: '12px', fontFamily: "'Outfit', sans-serif", outline: 'none', colorScheme: 'dark', minWidth: '130px' }}
+      />
+      <button
+        onClick={() => { setBulkDeadlineClear(v => !v); setBulkDeadline('') }}
+        style={{ padding: '6px 12px', borderRadius: '8px', border: '1px solid #3F3B37', background: bulkDeadlineClear ? '#7F1D1D' : '#2A2724', color: bulkDeadlineClear ? '#FCA5A5' : '#9CA3AF', fontFamily: "'Outfit', sans-serif", fontSize: '12px', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+        Limpar prazo
+      </button>
 
       <button onClick={apply} disabled={!canApply}
         style={{ padding: '7px 16px', borderRadius: '8px', border: 'none', background: canApply ? '#1D9E75' : '#3F3B37', color: canApply ? 'white' : '#9CA3AF', fontFamily: "'Syne', sans-serif", fontSize: '12px', fontWeight: 700, cursor: canApply ? 'pointer' : 'not-allowed', whiteSpace: 'nowrap', transition: 'background 0.15s' }}>
