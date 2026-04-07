@@ -700,6 +700,51 @@ export function useCROData() {
   const isPhaseTask = (reqId) =>
     Object.values(dataRef.current.phaseCustomTasks || {}).some(arr => arr.some(t => t.id === reqId))
 
+  // ── Phase-Brand sync helpers ──────────────────────────────────────────
+
+  // Returns the title of a phase custom task by its id
+  const getPhaseTaskTitle = (phaseTaskId) => {
+    for (const [, tasks] of Object.entries(dataRef.current.phaseCustomTasks || {})) {
+      const t = tasks.find(t => t.id === phaseTaskId)
+      if (t) return t.title
+    }
+    return null
+  }
+
+  // Returns [{ sectionId, taskId }] for all phase custom tasks with the given title
+  const findPhaseTasksByTitle = (title) => {
+    if (!title) return []
+    const results = []
+    for (const [sectionId, tasks] of Object.entries(dataRef.current.phaseCustomTasks || {})) {
+      tasks.forEach(t => { if (t.title === title) results.push({ sectionId, taskId: t.id }) })
+    }
+    return results
+  }
+
+  // Returns [{ sectionId, taskId }] for all brand custom tasks matching title in a given brand
+  const findBrandCustomTasksByTitle = (brandId, title) => {
+    if (!title) return []
+    const results = []
+    for (const [sectionId, tasks] of Object.entries(dataRef.current.customTasks?.[brandId] || {})) {
+      tasks.forEach(t => { if (t.title === title) results.push({ sectionId, taskId: t.id }) })
+    }
+    return results
+  }
+
+  // Returns [{ brandId, sectionId, taskId }] for all brand custom tasks matching title across all brands
+  const findBrandCustomTasksByTitleAllBrands = (title) => {
+    if (!title) return []
+    const results = []
+    for (const brandId of Object.keys(dataRef.current.customTasks || {})) {
+      findBrandCustomTasksByTitle(brandId, title).forEach(match => results.push({ brandId, ...match }))
+    }
+    return results
+  }
+
+  // Refs to allow updateTask and updateCustomTask to call each other without circular deps
+  const updateTaskRef = useRef(null)
+  const updateCustomTaskRef = useRef(null)
+
   const buildBrandTaskRow = (brandId, reqId, overrides) => {
     const current = dataRef.current.tasks[brandId]?.[reqId] || DEFAULT_TASK
     const t = { ...current, ...overrides }
@@ -748,7 +793,7 @@ export function useCROData() {
 
   // ── Mutations ────────────────────────────────────────────────────────
 
-  const updateTask = useCallback((brandId, reqId, field, value) => {
+  const updateTask = useCallback((brandId, reqId, field, value, opts = {}) => {
     setData(prev => ({
       ...prev,
       lastUpdated: new Date().toISOString(),
@@ -779,6 +824,16 @@ export function useCROData() {
           req_id: logEntry.reqId, req_label: logEntry.reqLabel,
           old_status: logEntry.oldStatus, new_status: logEntry.newStatus,
         }))
+      }
+
+      // Cascade: phase_task status → brand custom tasks with same title (same brand)
+      if (!opts.cascade && isPhaseTask(reqId)) {
+        const title = getPhaseTaskTitle(reqId)
+        if (title) {
+          findBrandCustomTasksByTitle(brandId, title).forEach(({ sectionId, taskId }) => {
+            updateCustomTaskRef.current?.(brandId, sectionId, taskId, 'status', value, { cascade: true })
+          })
+        }
       }
     }
 
@@ -828,11 +883,24 @@ export function useCROData() {
     return id
   }, [setData, dbWrite]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const updateCustomTask = useCallback((brandId, sectionId, taskId, field, value) => {
+  const updateCustomTask = useCallback((brandId, sectionId, taskId, field, value, opts = {}) => {
+    // Capture title before setData (dataRef.current still holds current state)
+    const taskTitle = field === 'status' && !opts.cascade
+      ? dataRef.current.customTasks?.[brandId]?.[sectionId]?.find(t => t.id === taskId)?.title
+      : null
+
     setData(prev => ({
       ...prev, lastUpdated: new Date().toISOString(),
       customTasks: { ...prev.customTasks, [brandId]: { ...(prev.customTasks?.[brandId] || {}), [sectionId]: (prev.customTasks?.[brandId]?.[sectionId] || []).map(t => t.id === taskId ? { ...t, [field]: value } : t) } },
     }))
+
+    // Cascade: brand_task status → phase tasks with same title (same brand)
+    if (field === 'status' && !opts.cascade && taskTitle) {
+      findPhaseTasksByTitle(taskTitle).forEach(({ taskId: phaseTaskId }) => {
+        updateTaskRef.current?.(brandId, phaseTaskId, 'status', value, { cascade: true })
+      })
+    }
+
     if (supabase) {
       if (field === 'description') {
         clearTimeout(notesTimerRef.current[`custom:${taskId}`])
@@ -843,7 +911,11 @@ export function useCROData() {
         dbWrite(supabase.from('brand_tasks').update({ [field]: value, updated_at: new Date().toISOString() }).eq('id', taskId))
       }
     }
-  }, [setData, dbWrite])
+  }, [setData, dbWrite]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep refs up-to-date so cascade calls always invoke the latest closures
+  updateTaskRef.current = updateTask
+  updateCustomTaskRef.current = updateCustomTask
 
   const deleteCustomTask = useCallback((brandId, sectionId, taskId) => {
     setData(prev => ({
@@ -983,6 +1055,11 @@ export function useCROData() {
   }, [setData, dbWrite]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const updatePhaseTask = useCallback((sectionId, taskId, field, value) => {
+    // Capture oldTitle before state update for title sync cascade
+    const oldTitle = field === 'title'
+      ? dataRef.current.phaseCustomTasks?.[sectionId]?.find(t => t.id === taskId)?.title ?? null
+      : null
+
     setData(prev => ({
       ...prev,
       lastUpdated: new Date().toISOString(),
@@ -993,11 +1070,19 @@ export function useCROData() {
         ),
       },
     }))
+
+    // Cascade: phase_task title change → update matching brand custom tasks in all brands
+    if (field === 'title' && oldTitle) {
+      findBrandCustomTasksByTitleAllBrands(oldTitle).forEach(({ brandId, sectionId: bSectionId, taskId: bTaskId }) => {
+        updateCustomTaskRef.current?.(brandId, bSectionId, bTaskId, 'title', value, { cascade: true })
+      })
+    }
+
     if (supabase) {
       const col = field === 'title' ? 'label' : field
       dbWrite(supabase.from('phase_tasks').update({ [col]: value, updated_at: new Date().toISOString() }).eq('id', taskId))
     }
-  }, [setData, dbWrite])
+  }, [setData, dbWrite]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const deletePhaseTask = useCallback((sectionId, taskId) => {
     const isCustom = isPhaseTask(taskId)
