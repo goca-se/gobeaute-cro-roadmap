@@ -144,6 +144,13 @@ function seedMissingNotes(data) {
   return data
 }
 
+// Supabase returns date columns as ISO timestamps ("2026-04-15T00:00:00+00:00").
+// <input type="date"> requires "yyyy-MM-dd" — slice to just the date part.
+function normalizeDeadline(value) {
+  if (!value) return null
+  return String(value).slice(0, 10)
+}
+
 function findReqLabel(reqId) {
   for (const phase of PHASES) {
     for (const section of phase.sections) {
@@ -164,6 +171,16 @@ function getSectionIdForReqOrPhaseTask(reqId, phaseCustomTasks) {
     if (tasks.some(t => t.id === reqId)) return sectionId
   }
   return null
+}
+
+function getSortOrderForReq(reqId) {
+  for (const phase of PHASES) {
+    for (const section of phase.sections) {
+      const idx = section.requirements.findIndex(r => r.id === reqId)
+      if (idx !== -1) return idx + 1 // 1-based, matches reqBySectionSort in fetchAllTables
+    }
+  }
+  return 0 // phase task or custom task — sort_order not used for matching
 }
 
 function nextTaskDbId(brandId, taskDbIds, customTasks) {
@@ -320,7 +337,7 @@ async function fetchAllTables() {
         tasks[row.brand_id][row.req_id] = {
           status: row.status || 'pending',
           assignee: row.responsible || row.assignee || null,
-          deadline: row.deadline || null,
+          deadline: normalizeDeadline(row.deadline),
           description: row.notes || row.description || '',
           priority: row.priority || null,
           customTitle: row.custom_title || null,
@@ -333,7 +350,7 @@ async function fetchAllTables() {
           title: row.title || '',
           status: row.status || 'pending',
           assignee: row.responsible || row.assignee || null,
-          deadline: row.deadline || null,
+          deadline: normalizeDeadline(row.deadline),
           description: row.notes || row.description || '',
           priority: row.priority || null,
         })
@@ -351,7 +368,7 @@ async function fetchAllTables() {
       tasks[brand_id][reqIdBySort] = {
         status: status || 'pending',
         assignee: assignee || null,
-        deadline: deadline || null,
+        deadline: normalizeDeadline(deadline),
         description: description || '',
         priority: priority || null,
         customTitle: null,
@@ -368,7 +385,7 @@ async function fetchAllTables() {
       tasks[brand_id][phaseTaskId] = {
         status: status || 'pending',
         assignee: assignee || null,
-        deadline: deadline || null,
+        deadline: normalizeDeadline(deadline),
         description: description || '',
         priority: priority || null,
         customTitle: null,
@@ -386,7 +403,7 @@ async function fetchAllTables() {
       title: title || '',
       status: status || 'pending',
       assignee: assignee || null,
-      deadline: deadline || null,
+      deadline: normalizeDeadline(deadline),
       description: description || '',
       priority: priority || null,
     })
@@ -692,12 +709,14 @@ export function useCROData() {
       id: taskDbId,
       brand_id: brandId,
       section_id: getSectionIdForReqOrPhaseTask(reqId, dataRef.current.phaseCustomTasks),
+      sort_order: getSortOrderForReq(reqId),
       title: t.customTitle || findReqLabel(reqId),
-      description: t.description,
+      description: t.description || '',
       assignee: t.assignee,
       status: t.status,
       deadline: t.deadline,
       priority: t.priority,
+      is_hidden: false,
       updated_at: new Date().toISOString(),
     }
     return row
@@ -764,13 +783,28 @@ export function useCROData() {
     }
 
     if (supabase) {
+      const upsertBrandTask = (overrides) => {
+        const row = buildBrandTaskRow(brandId, reqId, overrides)
+        const isNewRow = !dataRef.current.taskDbIds?.[brandId]?.[reqId]
+        const promise = supabase.from('brand_tasks').upsert(row)
+        dbWrite(promise)
+        promise.then(({ error }) => {
+          if (!error && isNewRow) {
+            setData(prev => ({
+              ...prev,
+              taskDbIds: {
+                ...prev.taskDbIds,
+                [brandId]: { ...(prev.taskDbIds?.[brandId] || {}), [reqId]: row.id },
+              },
+            }))
+          }
+        })
+      }
       if (field === 'description') {
         clearTimeout(notesTimerRef.current[`${brandId}:${reqId}`])
-        notesTimerRef.current[`${brandId}:${reqId}`] = setTimeout(() => {
-          dbWrite(supabase.from('brand_tasks').upsert(buildBrandTaskRow(brandId, reqId, {})))
-        }, 800)
+        notesTimerRef.current[`${brandId}:${reqId}`] = setTimeout(() => upsertBrandTask({}), 800)
       } else {
-        dbWrite(supabase.from('brand_tasks').upsert(buildBrandTaskRow(brandId, reqId, { [field]: value })))
+        upsertBrandTask({ [field]: value })
       }
     }
   }, [setData, dbWrite]) // eslint-disable-line react-hooks/exhaustive-deps
