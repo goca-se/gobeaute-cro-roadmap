@@ -23,7 +23,7 @@ export function useABTestData() {
   const [filters, setFilters] = useState({
     brandId: null, // null = all (Geral tab)
     status: null,  // null = all, 'running' | 'done' | 'paused' | 'draft'
-    winner: null,  // null = all, 'winner' | 'loser' | 'inconclusive'
+    winner: 'winner',  // null = all, 'winner' | 'loser' | 'inconclusive'
     dateRange: null, // null = all active, { start, end }
   })
 
@@ -187,6 +187,64 @@ export function useABTestData() {
     }
   }, [tests, filters.brandId])
 
+  // Helper: calculate lift percentage
+  function calcLift(variantVal, controlVal) {
+    if (!controlVal || controlVal === 0) return null
+    return ((variantVal - controlVal) / controlVal) * 100
+  }
+
+  // Consolidated metrics from filtered tests
+  const consolidatedMetrics = useMemo(() => {
+    const source = filteredTests
+
+    // RPV / CR / AOV via raw data aggregation
+    const rawTests = source.filter(t =>
+      t.control_sessions != null && t.variant_sessions != null &&
+      t.control_sessions > 0 && t.variant_sessions > 0
+    )
+
+    let cRevenue = 0, vRevenue = 0
+    let cSessions = 0, vSessions = 0
+    let cConversions = 0, vConversions = 0
+    rawTests.forEach(t => {
+      cRevenue += t.control_revenue || 0
+      vRevenue += t.variant_revenue || 0
+      cSessions += t.control_sessions || 0
+      vSessions += t.variant_sessions || 0
+      cConversions += t.control_conversions || 0
+      vConversions += t.variant_conversions || 0
+    })
+
+    const controlRPV = cSessions > 0 ? cRevenue / cSessions : null
+    const variantRPV = vSessions > 0 ? vRevenue / vSessions : null
+    const controlCR = cSessions > 0 ? cConversions / cSessions : null
+    const variantCR = vSessions > 0 ? vConversions / vSessions : null
+    const controlAOV = cConversions > 0 ? cRevenue / cConversions : null
+    const variantAOV = vConversions > 0 ? vRevenue / vConversions : null
+
+    // Add to Cart Rate — average of individual lifts
+    const atcTests = source.filter(t => t.control_add_to_cart_rate != null && t.variant_add_to_cart_rate != null && t.control_add_to_cart_rate > 0)
+    const atcLifts = atcTests.map(t => calcLift(t.variant_add_to_cart_rate, t.control_add_to_cart_rate))
+    const avgAtcLift = atcLifts.length > 0 ? atcLifts.reduce((a, b) => a + b, 0) / atcLifts.length : null
+
+    // Win Rate
+    const winCount = source.filter(t => t.is_winner).length
+
+    // Average duration — only done tests with finished_at
+    const doneTests = source.filter(t => t.status === 'done' && t.finished_at && t.started_at)
+    const durations = doneTests.map(t => (new Date(t.finished_at) - new Date(t.started_at)) / (1000 * 60 * 60 * 24))
+    const avgDays = durations.length > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : null
+
+    return {
+      rpv: { controlAgg: controlRPV, variantAgg: variantRPV, lift: calcLift(variantRPV, controlRPV), count: rawTests.length },
+      cr: { controlAgg: controlCR, variantAgg: variantCR, lift: calcLift(variantCR, controlCR), count: rawTests.length },
+      aov: { controlAgg: controlAOV, variantAgg: variantAOV, lift: calcLift(variantAOV, controlAOV), count: rawTests.length },
+      atcRate: { lift: avgAtcLift, count: atcTests.length },
+      winRate: { count: winCount, total: source.length, pct: source.length > 0 ? (winCount / source.length) * 100 : null },
+      avgDuration: { days: avgDays, count: doneTests.length },
+    }
+  }, [filteredTests])
+
   // Notes mutations
   const addNote = useCallback(async (testId, brandId, content, tags = []) => {
     if (!isConfigured || !supabase) return
@@ -239,6 +297,7 @@ export function useABTestData() {
     summary,
     brandSummary,
     globalLifts,
+    consolidatedMetrics,
     filters,
     setFilters,
     sortBy,

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useABTestData } from '../hooks/useABTestData'
 import { isConfigured } from '../lib/supabase'
 
@@ -204,6 +204,15 @@ function TestCard({ test, brandName, notes, onToggleNotes, isExpanded, onAddNote
           <MetricCell label="CR" control={test.control_cr} variant={test.variant_cr} lift={test.lift_cr_pct} suffix="%" />
           <MetricCell label="RPV" control={test.control_rpv} variant={test.variant_rpv} lift={test.lift_rpv_pct} prefix="R$" />
           <MetricCell label="AOV" control={test.control_aov} variant={test.variant_aov} lift={test.lift_aov_pct} prefix="R$" />
+          <MetricCell
+            label="Add to Cart"
+            control={test.control_add_to_cart_rate}
+            variant={test.variant_add_to_cart_rate}
+            lift={test.control_add_to_cart_rate && test.variant_add_to_cart_rate
+              ? ((test.variant_add_to_cart_rate - test.control_add_to_cart_rate) / test.control_add_to_cart_rate) * 100
+              : null}
+            suffix="%"
+          />
           {test.statistical_status && (
             <div style={{ padding: '8px 12px', background: '#FAFAF9', borderRadius: '8px', border: '1px solid #F5F0E8' }}>
               <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '10px', fontWeight: 600, color: '#A8A29E', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>
@@ -319,12 +328,159 @@ function MetricCell({ label, control, variant, lift, prefix = '', suffix = '' })
   )
 }
 
+const CARDS_VISIBILITY_KEY = 'gobeaute_ab_metric_cards'
+const DEFAULT_VISIBILITY = { rpv: true, cr: true, aov: true, atcRate: true, winRate: true, avgDuration: true }
+
+function useCardVisibility() {
+  const [visibleCards, setVisibleCards] = useState(() => {
+    try {
+      const stored = localStorage.getItem(CARDS_VISIBILITY_KEY)
+      return stored ? { ...DEFAULT_VISIBILITY, ...JSON.parse(stored) } : DEFAULT_VISIBILITY
+    } catch {
+      return DEFAULT_VISIBILITY
+    }
+  })
+
+  function toggleCard(key) {
+    setVisibleCards(prev => {
+      const next = { ...prev, [key]: !prev[key] }
+      localStorage.setItem(CARDS_VISIBILITY_KEY, JSON.stringify(next))
+      return next
+    })
+  }
+
+  return { visibleCards, toggleCard }
+}
+
+function ConsolidatedMetricCard({ label, value, sublabel, visible, onToggle }) {
+  return (
+    <div style={{
+      background: visible ? 'white' : '#FAFAF9',
+      border: `1px solid ${visible ? '#E7E2DA' : '#F0EDE8'}`,
+      borderRadius: '10px',
+      padding: visible ? '14px 16px' : '10px 16px',
+      flex: '1 1 0', minWidth: '130px',
+      position: 'relative',
+      transition: 'all 0.2s ease',
+      opacity: visible ? 1 : 0.6,
+    }}>
+      <button
+        onClick={onToggle}
+        title={visible ? 'Ocultar' : 'Exibir'}
+        style={{
+          position: 'absolute', top: '8px', right: '8px',
+          background: 'none', border: 'none', cursor: 'pointer',
+          padding: '2px', color: '#C7C3BD', fontSize: '12px',
+          lineHeight: 1,
+        }}
+      >
+        {visible ? '👁' : '👁\u0338'}
+      </button>
+      <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '10px', fontWeight: 600, color: '#A8A29E', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '6px' }}>
+        {label}
+      </div>
+      {visible ? (
+        <>
+          <div style={{ fontFamily: "'Fraunces', serif", fontSize: '20px', fontWeight: 400, lineHeight: 1 }}>
+            {value}
+          </div>
+          {sublabel && (
+            <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: '10px', color: '#A8A29E', marginTop: '4px' }}>
+              {sublabel}
+            </div>
+          )}
+        </>
+      ) : (
+        <div style={{ fontFamily: "'Outfit', sans-serif", fontSize: '11px', color: '#C7C3BD' }}>—</div>
+      )}
+    </div>
+  )
+}
+
+function ConsolidatedMetricsRow({ metrics, visibleCards, onToggleCard }) {
+  function liftColor(v) { return v > 0 ? '#059669' : v < 0 ? '#DC2626' : '#6B7280' }
+  function liftLabel(v) {
+    if (v === null || v === undefined) return '—'
+    const sign = v > 0 ? '+' : ''
+    return <span style={{ color: liftColor(v) }}>{sign}{v.toFixed(2)}%</span>
+  }
+
+  const cards = [
+    {
+      key: 'rpv',
+      label: 'RPV (lift)',
+      value: liftLabel(metrics.rpv.lift),
+      sublabel: metrics.rpv.count > 0 ? `${metrics.rpv.count} testes` : 'Dados insuficientes',
+    },
+    {
+      key: 'cr',
+      label: 'CR (lift)',
+      value: liftLabel(metrics.cr.lift),
+      sublabel: metrics.cr.count > 0 ? `${metrics.cr.count} testes` : 'Dados insuficientes',
+    },
+    {
+      key: 'aov',
+      label: 'AOV (lift)',
+      value: liftLabel(metrics.aov.lift),
+      sublabel: metrics.aov.count > 0 ? `${metrics.aov.count} testes` : 'Dados insuficientes',
+    },
+    {
+      key: 'atcRate',
+      label: 'Add to Cart (lift)',
+      value: liftLabel(metrics.atcRate.lift),
+      sublabel: metrics.atcRate.count > 0 ? `${metrics.atcRate.count} testes` : 'Dados insuficientes',
+    },
+    {
+      key: 'avgDuration',
+      label: 'Duração média',
+      value: metrics.avgDuration.days !== null ? <span style={{ color: '#44403C' }}>{Math.round(metrics.avgDuration.days)}d</span> : '—',
+      sublabel: metrics.avgDuration.count > 0 ? `${metrics.avgDuration.count} testes finalizados` : 'Nenhum finalizado',
+    },
+  ]
+
+  return (
+    <div style={{ marginBottom: '12px' }}>
+      <div style={{ fontFamily: "'Syne', sans-serif", fontSize: '10px', fontWeight: 600, color: '#C7C3BD', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
+        Métricas consolidadas
+      </div>
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        {cards.map(card => (
+          <ConsolidatedMetricCard
+            key={card.key}
+            label={card.label}
+            value={card.value}
+            sublabel={card.sublabel}
+            visible={visibleCards[card.key]}
+            onToggle={() => onToggleCard(card.key)}
+          />
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function FilterBar({ filters, setFilters, sortBy, setSortBy }) {
   return (
     <div style={{
       display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap',
       padding: '12px 0',
     }}>
+      {/* Winner filter — first, most relevant */}
+      <select
+        value={filters.winner || ''}
+        onChange={e => setFilters(prev => ({ ...prev, winner: e.target.value || null }))}
+        style={{
+          padding: '6px 12px', borderRadius: '8px', border: '1px solid #E7E2DA',
+          background: 'white', fontFamily: "'Outfit', sans-serif", fontSize: '12px',
+          color: '#44403C', cursor: 'pointer', outline: 'none',
+        }}
+      >
+        <option value="">Todos os resultados</option>
+        <option value="winner">Vencedor</option>
+        <option value="loser">Controle venceu</option>
+        <option value="inconclusive">Inconclusivo</option>
+      </select>
+
       {/* Status filter */}
       <select
         value={filters.status || ''}
@@ -340,22 +496,6 @@ function FilterBar({ filters, setFilters, sortBy, setSortBy }) {
         <option value="done">Finalizado</option>
         <option value="paused">Pausado</option>
         <option value="draft">Rascunho</option>
-      </select>
-
-      {/* Winner filter */}
-      <select
-        value={filters.winner || ''}
-        onChange={e => setFilters(prev => ({ ...prev, winner: e.target.value || null }))}
-        style={{
-          padding: '6px 12px', borderRadius: '8px', border: '1px solid #E7E2DA',
-          background: 'white', fontFamily: "'Outfit', sans-serif", fontSize: '12px',
-          color: '#44403C', cursor: 'pointer', outline: 'none',
-        }}
-      >
-        <option value="">Todos os resultados</option>
-        <option value="winner">Vencedor</option>
-        <option value="loser">Controle venceu</option>
-        <option value="inconclusive">Inconclusivo</option>
       </select>
 
       {/* Date range presets */}
@@ -425,13 +565,14 @@ function FilterBar({ filters, setFilters, sortBy, setSortBy }) {
 
 export default function ABTestingView() {
   const {
-    tests, loading, summary, brandSummary, globalLifts,
+    tests, loading, summary, brandSummary, globalLifts, consolidatedMetrics,
     filters, setFilters, sortBy, setSortBy,
     addNote, getTestNotes,
     triggerSync, syncState, lastSynced,
     BRANDS_MAP, BRAND_IDS,
   } = useABTestData()
 
+  const { visibleCards, toggleCard } = useCardVisibility()
   const [expandedNotes, setExpandedNotes] = useState(new Set())
   const [activeTab, setActiveTab] = useState(null) // null = Geral
 
@@ -544,6 +685,9 @@ export default function ABTestingView() {
           bg="#ECFDF5"
         />
       </div>
+
+      {/* Consolidated metrics row */}
+      <ConsolidatedMetricsRow metrics={consolidatedMetrics} visibleCards={visibleCards} onToggleCard={toggleCard} />
 
       {/* Filters */}
       <FilterBar filters={filters} setFilters={setFilters} sortBy={sortBy} setSortBy={setSortBy} />
