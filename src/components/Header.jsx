@@ -44,6 +44,7 @@ const TABS = [
   { id: 'brand',     label: 'Por Marca',    mobileLabel: 'Marcas', mobileIcon: '◈' },
   { id: 'matrix',    label: 'Matriz',       mobileLabel: 'Matriz', mobileIcon: '▦' },
   { id: 'analytics', label: 'Analítico',    mobileLabel: 'Análise', mobileIcon: '◑' },
+  { id: 'abtesting', label: 'Testes A/B',   mobileLabel: 'A/B',    mobileIcon: '⚗' },
   { id: 'log',       label: 'Histórico',    mobileLabel: 'Log',    mobileIcon: '◷' },
   { id: 'settings',  label: 'Configurações',mobileLabel: 'Config', mobileIcon: '⊙' },
 ]

@@ -6,6 +6,7 @@ import MatrixView from './components/MatrixView'
 import ActivityLog from './components/ActivityLog'
 import SettingsView from './components/SettingsView'
 import AnalyticsView from './components/AnalyticsView'
+import ABTestingView from './components/ABTestingView'
 import LoginScreen from './components/LoginScreen'
 import { useCROData } from './hooks/useCROData'
 import { useAuth } from './hooks/useAuth'
@@ -18,6 +19,7 @@ const PATH_TO_VIEW = {
   '/analytics': 'analytics',
   '/historico': 'log',
   '/config': 'settings',
+  '/testes-ab': 'abtesting',
 }
 const VIEW_TO_PATH = Object.fromEntries(
   Object.entries(PATH_TO_VIEW).map(([k, v]) => [v, k])
@@ -125,6 +127,9 @@ function AppInner({ user, signOut }) {
         )}
         {view === 'analytics' && (
           <AnalyticsView appSettings={data.appSettings} />
+        )}
+        {view === 'abtesting' && (
+          <ABTestingView />
         )}
         {view === 'settings' && (
           <SettingsView
