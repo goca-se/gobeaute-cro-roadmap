@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useABTestData } from '../hooks/useABTestData'
+import { useABTestData, hasEnoughData } from '../hooks/useABTestData'
 import { isConfigured } from '../lib/supabase'
 
 function formatDate(iso) {
@@ -47,6 +47,18 @@ function StatusBadge({ status }) {
 
 function WinnerBadge({ test }) {
   if (test.status !== 'done') return null
+  if (!hasEnoughData(test)) {
+    return (
+      <span style={{
+        display: 'inline-flex', alignItems: 'center', gap: '4px',
+        padding: '3px 10px', borderRadius: '20px',
+        background: '#FFFBEB', border: '1px solid #FDE68A',
+        fontFamily: "'Outfit', sans-serif", fontSize: '11px', fontWeight: 500, color: '#D97706',
+      }}>
+        Dados insuficientes
+      </span>
+    )
+  }
   if (test.is_winner) {
     return (
       <span style={{
@@ -329,7 +341,7 @@ function MetricCell({ label, control, variant, lift, prefix = '', suffix = '' })
 }
 
 const CARDS_VISIBILITY_KEY = 'gobeaute_ab_metric_cards'
-const DEFAULT_VISIBILITY = { rpv: true, cr: true, aov: true, atcRate: true, winRate: true, avgDuration: true }
+const DEFAULT_VISIBILITY = { rpv: true, rpvDelta: true, cr: true, aov: true, atcRate: true, winRate: true, avgDuration: true }
 
 function useCardVisibility() {
   const [visibleCards, setVisibleCards] = useState(() => {
@@ -405,12 +417,25 @@ function ConsolidatedMetricsRow({ metrics, visibleCards, onToggleCard }) {
     return <span style={{ color: liftColor(v) }}>{sign}{v.toFixed(2)}%</span>
   }
 
+  function rpvDeltaLabel(v, count) {
+    if (count === 0) return <span style={{ color: '#A8A29E' }}>—</span>
+    const sign = v > 0 ? '+' : ''
+    const color = v > 0 ? '#059669' : v < 0 ? '#DC2626' : '#6B7280'
+    return <span style={{ color }}>R$ {sign}{v.toFixed(2)}</span>
+  }
+
   const cards = [
     {
       key: 'rpv',
       label: 'RPV (lift)',
       value: liftLabel(metrics.rpv.lift),
       sublabel: metrics.rpv.count > 0 ? `${metrics.rpv.count} testes` : 'Dados insuficientes',
+    },
+    {
+      key: 'rpvDelta',
+      label: 'Incremento RPV (R$)',
+      value: rpvDeltaLabel(metrics.rpvDelta.value, metrics.rpvDelta.count),
+      sublabel: metrics.rpvDelta.count > 0 ? `${metrics.rpvDelta.count} testes` : 'Sem dados',
     },
     {
       key: 'cr',
@@ -500,21 +525,32 @@ function FilterBar({ filters, setFilters, sortBy, setSortBy }) {
 
       {/* Date range presets */}
       <select
-        value={
-          filters.dateRange === null ? '' :
-          filters.dateRange?.preset || 'custom'
-        }
+        value={filters.dateRange?.preset || ''}
         onChange={e => {
           const val = e.target.value
           if (!val) {
             setFilters(prev => ({ ...prev, dateRange: null }))
-          } else {
-            const now = new Date()
-            const days = val === '30d' ? 30 : val === '90d' ? 90 : val === '180d' ? 180 : 0
-            if (days > 0) {
-              const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000).toISOString()
-              setFilters(prev => ({ ...prev, dateRange: { start, end: null, preset: val } }))
-            }
+            return
+          }
+          const now = new Date()
+          if (val === '7d') {
+            const start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString()
+            setFilters(prev => ({ ...prev, dateRange: { preset: '7d', start, end: null } }))
+          } else if (val === '30d') {
+            const start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000).toISOString()
+            setFilters(prev => ({ ...prev, dateRange: { preset: '30d', start, end: null } }))
+          } else if (val === '90d') {
+            const start = new Date(now.getTime() - 90 * 24 * 60 * 60 * 1000).toISOString()
+            setFilters(prev => ({ ...prev, dateRange: { preset: '90d', start, end: null } }))
+          } else if (val === 'current_month') {
+            const start = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+            setFilters(prev => ({ ...prev, dateRange: { preset: 'current_month', start, end: null } }))
+          } else if (val === 'last_month') {
+            const start = new Date(now.getFullYear(), now.getMonth() - 1, 1).toISOString()
+            const end = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999).toISOString()
+            setFilters(prev => ({ ...prev, dateRange: { preset: 'last_month', start, end } }))
+          } else if (val === 'custom') {
+            setFilters(prev => ({ ...prev, dateRange: { preset: 'custom', start: null, end: null } }))
           }
         }}
         style={{
@@ -524,10 +560,40 @@ function FilterBar({ filters, setFilters, sortBy, setSortBy }) {
         }}
       >
         <option value="">Todas as datas</option>
+        <option value="7d">Últimos 7 dias</option>
         <option value="30d">Últimos 30 dias</option>
         <option value="90d">Últimos 90 dias</option>
-        <option value="180d">Últimos 180 dias</option>
+        <option value="current_month">Mês atual</option>
+        <option value="last_month">Mês passado</option>
+        <option value="custom">Personalizado</option>
       </select>
+
+      {/* Custom date range inputs */}
+      {filters.dateRange?.preset === 'custom' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+          <input
+            type="date"
+            value={filters.dateRange?.start || ''}
+            onChange={e => setFilters(prev => ({ ...prev, dateRange: { ...prev.dateRange, start: e.target.value || null } }))}
+            style={{
+              padding: '5px 10px', borderRadius: '8px', border: '1px solid #E7E2DA',
+              background: 'white', fontFamily: "'Outfit', sans-serif", fontSize: '12px',
+              color: '#44403C', outline: 'none',
+            }}
+          />
+          <span style={{ fontFamily: "'Outfit', sans-serif", fontSize: '12px', color: '#A8A29E' }}>até</span>
+          <input
+            type="date"
+            value={filters.dateRange?.end || ''}
+            onChange={e => setFilters(prev => ({ ...prev, dateRange: { ...prev.dateRange, end: e.target.value || null } }))}
+            style={{
+              padding: '5px 10px', borderRadius: '8px', border: '1px solid #E7E2DA',
+              background: 'white', fontFamily: "'Outfit', sans-serif", fontSize: '12px',
+              color: '#44403C', outline: 'none',
+            }}
+          />
+        </div>
+      )}
 
       {/* Sort */}
       <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '6px' }}>

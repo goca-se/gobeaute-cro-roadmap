@@ -11,6 +11,19 @@ const BRANDS_MAP = {
 
 const BRAND_IDS = Object.keys(BRANDS_MAP)
 
+const MIN_VISITORS_FOR_SIGNIFICANCE = 100_000
+
+export function hasEnoughData(test) {
+  const total = (test.control_sessions || 0) + (test.variant_sessions || 0)
+  return total >= MIN_VISITORS_FOR_SIGNIFICANCE
+}
+
+function getTestDate(t) {
+  return t.status === 'done' && t.finished_at
+    ? new Date(t.finished_at)
+    : new Date(t.started_at)
+}
+
 export function useABTestData() {
   const [tests, setTests] = useState([])
   const [notes, setNotes] = useState([])
@@ -91,21 +104,25 @@ export function useABTestData() {
 
     // Winner filter
     if (filters.winner === 'winner') {
-      result = result.filter(t => t.is_winner)
+      result = result.filter(t => t.is_winner && hasEnoughData(t))
     } else if (filters.winner === 'loser') {
-      result = result.filter(t => t.status === 'done' && !t.is_winner)
+      result = result.filter(t => t.status === 'done' && !t.is_winner && t.statistical_status === 'Significant' && hasEnoughData(t))
     } else if (filters.winner === 'inconclusive') {
-      result = result.filter(t => t.status === 'done' && t.statistical_status !== 'Significant')
+      result = result.filter(t => t.status === 'done' && (!hasEnoughData(t) || t.statistical_status !== 'Significant'))
     }
 
-    // Date range filter
+    // Date range filter (uses finished_at for done tests, started_at for others)
     if (filters.dateRange?.start) {
       const start = new Date(filters.dateRange.start)
-      result = result.filter(t => new Date(t.started_at) >= start)
+      result = result.filter(t => getTestDate(t) >= start)
     }
     if (filters.dateRange?.end) {
-      const end = new Date(filters.dateRange.end)
-      result = result.filter(t => new Date(t.started_at) <= end)
+      let end = new Date(filters.dateRange.end)
+      // Custom date inputs are YYYY-MM-DD (no time) — extend to end of day
+      if (filters.dateRange.preset === 'custom' && !String(filters.dateRange.end).includes('T')) {
+        end = new Date(end.getTime() + 24 * 60 * 60 * 1000 - 1)
+      }
+      result = result.filter(t => getTestDate(t) <= end)
     }
 
     // Default: show active (running + recent done) if no filters set
@@ -178,7 +195,7 @@ export function useABTestData() {
   // Global accumulated lifts (sum of winner lifts)
   const globalLifts = useMemo(() => {
     const source = filters.brandId ? tests.filter(t => t.brand_id === filters.brandId) : tests
-    const winners = source.filter(t => t.is_winner)
+    const winners = source.filter(t => t.is_winner && hasEnoughData(t))
     return {
       cr: Math.round(winners.reduce((sum, t) => sum + (t.lift_cr_pct || 0), 0) * 100) / 100,
       rpv: Math.round(winners.reduce((sum, t) => sum + (t.lift_rpv_pct || 0), 0) * 100) / 100,
@@ -235,8 +252,13 @@ export function useABTestData() {
     const durations = doneTests.map(t => (new Date(t.finished_at) - new Date(t.started_at)) / (1000 * 60 * 60 * 24))
     const avgDays = durations.length > 0 ? durations.reduce((a, b) => a + b, 0) / durations.length : null
 
+    // RPV bruto delta: Σ(variant_rpv - control_rpv) dos testes com ambos os valores
+    const rpvDeltaTests = source.filter(t => t.control_rpv != null && t.variant_rpv != null)
+    const rpvBrutoDelta = rpvDeltaTests.reduce((sum, t) => sum + (t.variant_rpv - t.control_rpv), 0)
+
     return {
       rpv: { controlAgg: controlRPV, variantAgg: variantRPV, lift: calcLift(variantRPV, controlRPV), count: rawTests.length },
+      rpvDelta: { value: rpvBrutoDelta, count: rpvDeltaTests.length },
       cr: { controlAgg: controlCR, variantAgg: variantCR, lift: calcLift(variantCR, controlCR), count: rawTests.length },
       aov: { controlAgg: controlAOV, variantAgg: variantAOV, lift: calcLift(variantAOV, controlAOV), count: rawTests.length },
       atcRate: { lift: avgAtcLift, count: atcTests.length },
