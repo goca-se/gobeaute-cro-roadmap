@@ -104,7 +104,7 @@ export function useABTestData() {
 
     // Winner filter
     if (filters.winner === 'winner') {
-      result = result.filter(t => t.is_winner && hasEnoughData(t))
+      result = result.filter(t => t.status === 'done' && t.is_winner && hasEnoughData(t))
     } else if (filters.winner === 'loser') {
       result = result.filter(t => t.status === 'done' && !t.is_winner && t.statistical_status === 'Significant' && hasEnoughData(t))
     } else if (filters.winner === 'inconclusive') {
@@ -195,7 +195,7 @@ export function useABTestData() {
   // Global accumulated lifts (sum of winner lifts)
   const globalLifts = useMemo(() => {
     const source = filters.brandId ? tests.filter(t => t.brand_id === filters.brandId) : tests
-    const winners = source.filter(t => t.is_winner && hasEnoughData(t))
+    const winners = source.filter(t => t.status === 'done' && t.is_winner && hasEnoughData(t))
     return {
       cr: Math.round(winners.reduce((sum, t) => sum + (t.lift_cr_pct || 0), 0) * 100) / 100,
       rpv: Math.round(winners.reduce((sum, t) => sum + (t.lift_rpv_pct || 0), 0) * 100) / 100,
@@ -214,35 +214,41 @@ export function useABTestData() {
   const consolidatedMetrics = useMemo(() => {
     const source = filteredTests
 
-    // RPV / CR / AOV via raw data aggregation
-    const rawTests = source.filter(t =>
-      t.control_sessions != null && t.variant_sessions != null &&
-      t.control_sessions > 0 && t.variant_sessions > 0
-    )
+    // Lift consolidado por média ponderada:
+    //   metric_antes  = Σ(control_metric × peso) / Σ(peso)
+    //   metric_depois = Σ(variant_metric × peso) / Σ(peso)
+    //   lift          = (depois − antes) / antes
+    // Peso = total de sessões para RPV/CR (taxas por sessão) e total de conversões para AOV (R$/pedido).
+    function weightedLift(metricKey, weightKey) {
+      const cMetric = `control_${metricKey}`
+      const vMetric = `variant_${metricKey}`
+      const cWeight = `control_${weightKey}`
+      const vWeight = `variant_${weightKey}`
+      const valid = source.filter(t =>
+        t[cMetric] != null && t[vMetric] != null &&
+        t[cWeight] != null && t[vWeight] != null &&
+        (t[cWeight] + t[vWeight]) > 0
+      )
+      if (valid.length === 0) return { before: null, after: null, lift: null, count: 0 }
+      let sumW = 0, sumBefore = 0, sumAfter = 0
+      valid.forEach(t => {
+        const w = (t[cWeight] || 0) + (t[vWeight] || 0)
+        sumW += w
+        sumBefore += t[cMetric] * w
+        sumAfter += t[vMetric] * w
+      })
+      const before = sumBefore / sumW
+      const after = sumAfter / sumW
+      const lift = before > 0 ? ((after - before) / before) * 100 : null
+      return { before, after, lift, count: valid.length }
+    }
 
-    let cRevenue = 0, vRevenue = 0
-    let cSessions = 0, vSessions = 0
-    let cConversions = 0, vConversions = 0
-    rawTests.forEach(t => {
-      cRevenue += t.control_revenue || 0
-      vRevenue += t.variant_revenue || 0
-      cSessions += t.control_sessions || 0
-      vSessions += t.variant_sessions || 0
-      cConversions += t.control_conversions || 0
-      vConversions += t.variant_conversions || 0
-    })
+    const rpvAgg = weightedLift('rpv', 'sessions')
+    const crAgg = weightedLift('cr', 'sessions')
+    const aovAgg = weightedLift('aov', 'conversions')
 
-    const controlRPV = cSessions > 0 ? cRevenue / cSessions : null
-    const variantRPV = vSessions > 0 ? vRevenue / vSessions : null
-    const controlCR = cSessions > 0 ? cConversions / cSessions : null
-    const variantCR = vSessions > 0 ? vConversions / vSessions : null
-    const controlAOV = cConversions > 0 ? cRevenue / cConversions : null
-    const variantAOV = vConversions > 0 ? vRevenue / vConversions : null
-
-    // Add to Cart Rate — average of individual lifts
-    const atcTests = source.filter(t => t.control_add_to_cart_rate != null && t.variant_add_to_cart_rate != null && t.control_add_to_cart_rate > 0)
-    const atcLifts = atcTests.map(t => calcLift(t.variant_add_to_cart_rate, t.control_add_to_cart_rate))
-    const avgAtcLift = atcLifts.length > 0 ? atcLifts.reduce((a, b) => a + b, 0) / atcLifts.length : null
+    // Add to Cart Rate — mesma lógica, ponderada por sessões
+    const atcAgg = weightedLift('add_to_cart_rate', 'sessions')
 
     // Win Rate
     const winCount = source.filter(t => t.is_winner).length
@@ -257,11 +263,11 @@ export function useABTestData() {
     const rpvBrutoDelta = rpvDeltaTests.reduce((sum, t) => sum + (t.variant_rpv - t.control_rpv), 0)
 
     return {
-      rpv: { controlAgg: controlRPV, variantAgg: variantRPV, lift: calcLift(variantRPV, controlRPV), count: rawTests.length },
+      rpv: { controlAgg: rpvAgg.before, variantAgg: rpvAgg.after, lift: rpvAgg.lift, count: rpvAgg.count },
       rpvDelta: { value: rpvBrutoDelta, count: rpvDeltaTests.length },
-      cr: { controlAgg: controlCR, variantAgg: variantCR, lift: calcLift(variantCR, controlCR), count: rawTests.length },
-      aov: { controlAgg: controlAOV, variantAgg: variantAOV, lift: calcLift(variantAOV, controlAOV), count: rawTests.length },
-      atcRate: { lift: avgAtcLift, count: atcTests.length },
+      cr: { controlAgg: crAgg.before, variantAgg: crAgg.after, lift: crAgg.lift, count: crAgg.count },
+      aov: { controlAgg: aovAgg.before, variantAgg: aovAgg.after, lift: aovAgg.lift, count: aovAgg.count },
+      atcRate: { lift: atcAgg.lift, count: atcAgg.count },
       winRate: { count: winCount, total: source.length, pct: source.length > 0 ? (winCount / source.length) * 100 : null },
       avgDuration: { days: avgDays, count: doneTests.length },
     }
