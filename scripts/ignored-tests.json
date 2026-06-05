@@ -1,0 +1,6 @@
+{
+  "_comment": "Testes que devem ser SEMPRE removidos do banco e nunca re-inseridos pelo sync, mesmo que ainda existam na Elevate. Chave = brand_id, valor = lista de testId.",
+  "apice": [
+    "5f2b21e6-0c30-48df-bd78-8891be4f621b"
+  ]
+}

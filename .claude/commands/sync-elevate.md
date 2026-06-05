@@ -24,6 +24,21 @@ Para cada marca (apice, barbours, kokeshi, rituaria, lescent):
    - Insert em `ab_test_snapshots` (histórico)
    - Insert em `ab_sync_log` (trigger_type: 'cron')
 
+## Pré-requisito: Service Role Key
+
+Para salvar no Supabase o sync usa o **`VITE_SUPABASE_SERVICE_ROLE_KEY`** do `.env` (não a anon key), pois as tabelas `ab_tests`, `ab_test_snapshots` e `ab_sync_log` têm RLS que exige usuário `authenticated`. A service role key bypassa o RLS.
+
+Ao escrever o script de sync, inicializar o cliente assim:
+```js
+import { createClient } from '@supabase/supabase-js'
+const supabase = createClient(
+  process.env.VITE_SUPABASE_URL,
+  process.env.VITE_SUPABASE_SERVICE_ROLE_KEY
+)
+```
+
+Se a variável não estiver no `.env`, o script deve abortar com erro claro antes de tentar salvar.
+
 ## Regras importantes
 
 - **NÃO usar** `get_test` — endpoint instável (retorna fetch failed)

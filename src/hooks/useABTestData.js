@@ -11,9 +11,19 @@ const BRANDS_MAP = {
 
 const BRAND_IDS = Object.keys(BRANDS_MAP)
 
-const MIN_VISITORS_FOR_SIGNIFICANCE = 100_000
+const MIN_VISITORS_FOR_SIGNIFICANCE = 50_000
+
+// Testes que devem ser tratados como tendo dados suficientes (vencedor/perdedor
+// conforme a significância da Elevate) independente do volume de acessos.
+const FORCE_ENOUGH_DATA_IDS = new Set([
+  '910b6fea-1117-4fe2-937e-c09199fd313d', // [PDP] Kit Cachos com conteúdo incrementado (Ápice)
+])
 
 export function hasEnoughData(test) {
+  if (FORCE_ENOUGH_DATA_IDS.has(test.id)) return true
+  // Se a Elevate já cravou significância estatística, o veredito vale
+  // independente do volume — o piso de amostragem é apenas guarda secundária.
+  if (test.statistical_status === 'Significant') return true
   const total = (test.control_sessions || 0) + (test.variant_sessions || 0)
   return total >= MIN_VISITORS_FOR_SIGNIFICANCE
 }

@@ -24,3 +24,6 @@ melhorias-incrementais.md
 .context/prp/
 .context/discoveries/
 .context/bugs/
+
+# Snapshots de dados do sync Elevate (transitórios — não versionar)
+scripts/sync-data-*.json
