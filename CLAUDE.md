@@ -33,7 +33,7 @@ Task descriptions support inline image attachments via `task-images` bucket in S
 
 ## Architecture
 
-Single-page React app. Views: `dashboard | brand | matrix | analytics | abtesting | log | settings`. URL paths map to views via `PATH_TO_VIEW` in `App.jsx`; navigation uses `pushState` (no router library).
+Single-page React app. Views: `dashboard | brand | matrix | analytics | abtesting | testmatrix | log | settings`. URL paths map to views via `PATH_TO_VIEW` in `App.jsx`; navigation uses `pushState` (no router library).
 
 ### Key directories
 
@@ -102,14 +102,20 @@ Owns **all** app state. Loads from localStorage (`gobeaute_cro_data`, `gobeaute_
 ### A/B Testing — Elevate integration
 
 `src/components/ABTestingView.jsx` — View at `/testes-ab` displaying A/B test data from Elevate platform.
-`src/hooks/useABTestData.js` — Hook for reading test data from Supabase, filtering, sorting, and managing notes.
-`src/lib/elevateSync.js` — Normalization logic for MCP data → Supabase schema (used by sync command).
+`src/components/TestMatrixView.jsx` — View at `/matriz-testes`: **matriz família-de-teste × marca** (cross-marca). Agrupa testes por família, mostra o último teste por célula, com filtros (resultado, marca, área, escalado, busca) e balde "A triar".
+`src/hooks/useABTestData.js` — Hook for reading test data from Supabase, filtering, sorting, and managing notes. Exporta também `hasEnoughData`, `getTestDate`, `BRANDS_MAP`, `BRAND_IDS` (reusados pela matriz — não duplicar veredito).
+`src/hooks/useABTestMatrix.js` — Hook da matriz: agrupa por família (`family_id` carimbado, fallback `classifyTest`), monta linhas/células, deriva veredito/escalada/validada, filtros e `triggerSync`.
+`src/data/abTestFamilies.js` — Taxonomia de famílias + `classifyTest`/`normalizeTestName`/`extractArea`. **Módulo sem imports** (usado no browser e no Node do sync). Fonte de verdade do agrupamento. Ver ADR-006.
+`src/lib/elevateSync.js` — Normalization logic for MCP data → Supabase schema (used by sync command). `normalizeTest` carimba `family_id`/`family_label`/`area` via `classifyTest`.
 `.claude/commands/sync-elevate.md` — Claude Code command to collect data from Elevate MCP tools.
+`scripts/verify-ab-families.mjs` — valida a taxonomia contra os dados reais. `scripts/backfill-ab-families.mjs` — backfill único das colunas de família.
 
-**Tables:** `ab_tests`, `ab_test_snapshots`, `ab_test_notes`, `ab_sync_log` (see `.claude/docs/supabase-schema.md`).
+**Regras da matriz:** **Escalada** = família rodou em ≥2 marcas; **Validada** = venceu (`verdict === 'winner'`) em ≥1 marca. Célula = último teste da família naquela marca (`getTestDate`). Veredito reusa a lógica da `ABTestingView`.
+
+**Tables:** `ab_tests` (inclui `family_id`, `family_label`, `area`), `ab_test_snapshots`, `ab_test_notes`, `ab_sync_log` (see `.claude/docs/supabase-schema.md`).
 **Setup SQL:** `supabase-ab-tests-setup.sql`
 
-Data flows: Elevate MCP → Claude Code command/cron → `elevateSync.js` normalizes → Supabase tables → `useABTestData` hook reads → `ABTestingView` renders.
+Data flows: Elevate MCP → Claude Code command/cron → `elevateSync.js` normalizes (+ carimba família) → Supabase tables → `useABTestData`/`useABTestMatrix` hooks read → `ABTestingView`/`TestMatrixView` render.
 
 Brand mapping (1:1): `apice` ↔ `mcp__elevate-apice`, `barbours` ↔ `mcp__elevate-barbours`, `kokeshi` ↔ `mcp__elevate-kokeshi`, `rituaria` ↔ `mcp__elevate-rituaria`, `lescent` ↔ `mcp__elevate-lescent`.
 

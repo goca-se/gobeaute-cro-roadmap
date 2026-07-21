@@ -300,6 +300,9 @@ Master registry of A/B tests from Elevate platform. Updated via MCP sync (cron o
 | `lift_aov_pct` | numeric | — | AOV lift percentage (calculated) |
 | `statistical_status` | text | — | "Significant" or "Not Significant" |
 | `statistical_significance` | jsonb | — | Full significance JSON from Elevate |
+| `family_id` | text | — | Família de teste (matriz cross-marca). Carimbado no sync via `classifyTest`. Null = não classificado ("A triar"). Ver ADR-006 |
+| `family_label` | text | — | Label legível da família (ex: "Desconto no Pix") |
+| `area` | text | — | Área do site: home, pdp, cart, collection, tema, feat, preco, outros |
 | `raw_list_data` | jsonb | — | Raw list_tests response |
 | `raw_results_data` | jsonb | — | Raw get_test_results response |
 | `raw_significance_data` | jsonb | — | Raw get_statistical_significance response |

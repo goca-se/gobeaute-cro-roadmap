@@ -11,6 +11,7 @@ Record of significant technical decisions in this project.
 | [003](003-browser-jwt-for-metabase.md) | Browser-side JWT Signing for Metabase Embeds | Accepted |
 | [004](004-mergedphases-overlay-pattern.md) | mergedPhases Overlay Pattern | Accepted |
 | [005](005-image-storage-strategy.md) | Image Storage Strategy (Supabase Storage + Base64 Fallback) | Accepted |
+| [006](006-ab-test-family-classification.md) | Classificação de Testes A/B por Similaridade de Nome (carimbada no sync) | Accepted |
 
 ## Template
 

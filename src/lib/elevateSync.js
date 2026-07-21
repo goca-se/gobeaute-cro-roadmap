@@ -1,4 +1,5 @@
 import { supabase, isConfigured } from './supabase'
+import { classifyTest } from '../data/abTestFamilies'
 
 /**
  * Normalizes a status string from Elevate MCP (capitalized) to lowercase.
@@ -171,6 +172,12 @@ export function normalizeTest(listItem, resultsData, significanceData) {
     last_synced_at: new Date().toISOString(),
     updated_at: new Date().toISOString(),
   }
+
+  // Classificação de família (matriz cross-marca). Ver ADR-006.
+  const fam = classifyTest(normalized.name)
+  normalized.family_id = fam.id === '__unclassified' ? null : fam.id
+  normalized.family_label = fam.id === '__unclassified' ? null : fam.label
+  normalized.area = fam.area || null
 
   return { normalized, errors }
 }

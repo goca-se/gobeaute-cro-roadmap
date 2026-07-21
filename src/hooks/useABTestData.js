@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { supabase, isConfigured } from '../lib/supabase'
 
-const BRANDS_MAP = {
+export const BRANDS_MAP = {
   apice: 'Ápice',
   barbours: "Barbour's",
   kokeshi: 'Kokeshi',
@@ -9,7 +9,7 @@ const BRANDS_MAP = {
   lescent: 'Lescent',
 }
 
-const BRAND_IDS = Object.keys(BRANDS_MAP)
+export const BRAND_IDS = Object.keys(BRANDS_MAP)
 
 const MIN_VISITORS_FOR_SIGNIFICANCE = 50_000
 
@@ -28,7 +28,7 @@ export function hasEnoughData(test) {
   return total >= MIN_VISITORS_FOR_SIGNIFICANCE
 }
 
-function getTestDate(t) {
+export function getTestDate(t) {
   return t.status === 'done' && t.finished_at
     ? new Date(t.finished_at)
     : new Date(t.started_at)

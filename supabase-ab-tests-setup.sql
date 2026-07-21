@@ -47,6 +47,12 @@ CREATE TABLE IF NOT EXISTS public.ab_tests (
   statistical_status text,
   statistical_significance jsonb,
 
+  -- Family classification (cross-brand test matrix). Carimbado pelo sync
+  -- (elevateSync.js -> classifyTest). Ver ADR-006.
+  family_id text,
+  family_label text,
+  area text,
+
   raw_list_data jsonb,
   raw_results_data jsonb,
   raw_significance_data jsonb,
@@ -61,6 +67,14 @@ CREATE TABLE IF NOT EXISTS public.ab_tests (
 CREATE INDEX IF NOT EXISTS idx_ab_tests_brand ON public.ab_tests(brand_id);
 CREATE INDEX IF NOT EXISTS idx_ab_tests_status ON public.ab_tests(status);
 CREATE INDEX IF NOT EXISTS idx_ab_tests_finished ON public.ab_tests(finished_at);
+
+-- Migração idempotente (para instalações existentes de ab_tests): adiciona as
+-- colunas de classificação de família usadas pela "Matriz de Testes". Rode este
+-- bloco no Supabase SQL Editor antes do próximo /sync-elevate. Ver ADR-006.
+ALTER TABLE public.ab_tests ADD COLUMN IF NOT EXISTS family_id    text;
+ALTER TABLE public.ab_tests ADD COLUMN IF NOT EXISTS family_label text;
+ALTER TABLE public.ab_tests ADD COLUMN IF NOT EXISTS area         text;
+CREATE INDEX IF NOT EXISTS idx_ab_tests_family ON public.ab_tests(family_id);
 
 -- Metric snapshots (historical)
 CREATE TABLE IF NOT EXISTS public.ab_test_snapshots (

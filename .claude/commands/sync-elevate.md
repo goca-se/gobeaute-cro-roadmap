@@ -20,9 +20,12 @@ Para cada marca (apice, barbours, kokeshi, rituaria, lescent):
    - Variante principal: primeira variação com `isControl: false`
 
 4. **Salvar no Supabase**:
+   - **Classificar família**: rodar `classifyTest(name)` de `src/data/abTestFamilies.js` e gravar `family_id`, `family_label`, `area` (null quando `__unclassified`). Usado pela "Matriz de Testes" cross-marca (ADR-006). Se estiver usando `normalizeTest` de `elevateSync.js`, o carimbo já é feito automaticamente.
    - Upsert em `ab_tests` (PK: `id` + `brand_id`)
    - Insert em `ab_test_snapshots` (histórico)
    - Insert em `ab_sync_log` (trigger_type: 'cron')
+
+   > **Pré-requisito de schema:** as colunas `family_id`, `family_label`, `area` precisam existir em `ab_tests` (ver `supabase-ab-tests-setup.sql`). Sem elas o upsert com esses campos falha.
 
 ## Pré-requisito: Service Role Key
 

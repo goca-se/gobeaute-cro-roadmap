@@ -45,6 +45,7 @@ const TABS = [
   { id: 'matrix',    label: 'Matriz',       mobileLabel: 'Matriz', mobileIcon: '▦' },
   { id: 'analytics', label: 'Analítico',    mobileLabel: 'Análise', mobileIcon: '◑' },
   { id: 'abtesting', label: 'Testes A/B',   mobileLabel: 'A/B',    mobileIcon: '⚗' },
+  { id: 'testmatrix', label: 'Matriz de Testes', mobileLabel: 'Matriz A/B', mobileIcon: '▤' },
   { id: 'log',       label: 'Histórico',    mobileLabel: 'Log',    mobileIcon: '◷' },
   { id: 'settings',  label: 'Configurações',mobileLabel: 'Config', mobileIcon: '⊙' },
 ]
