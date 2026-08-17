@@ -7,6 +7,7 @@ import { createClient } from '@supabase/supabase-js'
 import { readFileSync } from 'fs'
 import { fileURLToPath } from 'url'
 import { dirname, join } from 'path'
+import { classifyTest } from '../src/data/abTestFamilies.js'
 
 const __dir = dirname(fileURLToPath(import.meta.url))
 const envPath = join(__dir, '..', '.env')
@@ -59,8 +60,13 @@ function normalizeTest(brandId, listItem, resultsData, sigData) {
     liftAovPct = Math.round(((variantAov - controlAov) / controlAov) * 10000) / 100
   const goal = listItem.goal || 'REVENUE_PER_VISITOR'
   const winnerInfo = determineWinner(goal, sigData, variations)
+  // Classificação de família (matriz cross-marca). Ver ADR-006.
+  const fam = classifyTest(listItem.name || '')
   return {
     id: listItem.testId, brand_id: brandId, name: listItem.name || '', type: listItem.type || null, status, goal,
+    family_id: fam.id === '__unclassified' ? null : fam.id,
+    family_label: fam.id === '__unclassified' ? null : fam.label,
+    area: fam.area || null,
     started_at: safeDate(listItem.startingAt), finished_at: safeDate(listItem.completedAt),
     traffic_percentage: safeInt(listItem.testTrafficPercentage),
     winner_variation_id: winnerInfo.winnerVariationId,
@@ -134,10 +140,14 @@ for (const [brandId, brandData] of Object.entries(ALL_DATA)) {
         stats.upserted++
       } else if (existingIds.has(listItem.testId)) {
         // Light update: keep metrics, sync status/finished_at/name to current Elevate state
+        const fam = classifyTest(listItem.name || '')
         const { error: updErr } = await DRY(sb.from('ab_tests').update({
           status: normalizeStatus(listItem.status),
           finished_at: safeDate(listItem.completedAt),
           name: listItem.name || '',
+          family_id: fam.id === '__unclassified' ? null : fam.id,
+          family_label: fam.id === '__unclassified' ? null : fam.label,
+          area: fam.area || null,
           last_synced_at: NOW, updated_at: NOW,
         }).eq('id', listItem.testId).eq('brand_id', brandId))
         if (updErr) { stats.errors++; console.error(`   ⚠️ light-update ${listItem.testId}: ${updErr.message}`); continue }

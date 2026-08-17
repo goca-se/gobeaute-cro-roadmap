@@ -10,7 +10,7 @@ const env = Object.fromEntries(
   readFileSync(join(__dir, '..', '.env'), 'utf-8').split('\n').filter(l => l.includes('=')).map(l => l.split('=').map(s => s.trim())).filter(([k]) => k)
 )
 const sb = createClient(env['VITE_SUPABASE_URL'], env['VITE_SUPABASE_SERVICE_ROLE_KEY'])
-const DATA = JSON.parse(readFileSync(join(__dir, 'sync-data-2026-06-05.json'), 'utf-8'))
+const DATA = JSON.parse(readFileSync(join(__dir, process.argv[2] || 'sync-data-2026-06-08.json'), 'utf-8'))
 
 const norm = s => (s || '').toLowerCase()
 const dateEq = (a, b) => {
@@ -74,8 +74,9 @@ for (const [brandId, bd] of Object.entries(DATA)) {
       }
     }
 
-    // last_synced_at should be today
-    if (!row.last_synced_at || !String(row.last_synced_at).startsWith('2026-06-05')) {
+    // last_synced_at should be today (data da execução)
+    const TODAY = new Date().toISOString().slice(0, 10)
+    if (!row.last_synced_at || !String(row.last_synced_at).startsWith(TODAY)) {
       console.log(`✗ [${brandId}] last_synced_at desatualizado ${li.testId}: ${row.last_synced_at}`); problems++
     }
   }
